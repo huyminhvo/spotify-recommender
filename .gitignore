@@ -13,3 +13,9 @@ venv/
 
 # Data files (optional)
 data/*.csv
+
+# Dataset cache
+.dataset_cache/
+
+#OAuth cache
+.cache

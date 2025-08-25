@@ -1,0 +1,16 @@
+# Auto-detect text files and normalize to LF in the repo
+* text=auto eol=lf
+
+# Explicitly enforce LF for Python and Markdown files
+*.py text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+
+# Keep binary files untouched
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.csv binary
+*.parquet binary
+*.pkl binary
