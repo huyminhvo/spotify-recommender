@@ -1,21 +1,17 @@
-# Python cache
+# Python
 __pycache__/
 *.pyc
+*.pyo
 
 # Virtual environment
 venv/
 
-# Environment variables
-.env
+# Data
+data/raw/
+data/processed/
+*.parquet
+*.csv
 
-# VS Code settings
-.vscode/
-
-# Data files (optional)
-data/*.csv
-
-# Dataset cache
-.dataset_cache/
-
-#OAuth cache
-.cache
+# Cache
+*.pkl
+.cache/

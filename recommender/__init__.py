@@ -1,0 +1,3 @@
+"""
+Core recommender system package.
+"""

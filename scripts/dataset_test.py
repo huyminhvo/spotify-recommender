@@ -1,9 +1,9 @@
 # scripts/dataset_test.py
-from merge_datasets import get_merged_dataset, AUDIO_FEATURES
+from utils.merge_datasets import get_merged_dataset, AUDIO_FEATURES
 import pandas as pd
 
 # --- 1. Load merged dataset (cached if available) ---
-paths = ["tracks_features.csv", "spotify_data.csv"]  # adjust filenames if needed
+paths = ["datasets/tracks_features.csv", "datasets/spotify_data.csv", "datasets/spotify_top_songs_audio_features.csv"]  # adjust filenames if needed
 df = get_merged_dataset(paths)
 
 print("\n=== Basic Info ===")

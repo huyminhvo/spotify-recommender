@@ -2,6 +2,7 @@ import ast
 import re
 import unicodedata
 from collections import defaultdict
+import pandas as pd
 
 # === Canonicalization ===
 
@@ -68,57 +69,58 @@ VARIANT_TAGS = ["live", "remix", "instrumental", "clean", "explicit",
 
 # === Index Building ===
 
-def build_indexes(df):
+def build_indexes(df: pd.DataFrame):
     """
-    Build lookup dicts for fast matching.
-    Uses the normalized columns (title_canon, artist_primary_canon)
-    if they exist in the DataFrame, otherwise recomputes.
+    Build lookup dicts for fast matching, storing only row indices
+    (to keep pickled index size small).
     """
     by_id, by_key, by_artist = {}, defaultdict(list), defaultdict(list)
 
-    for _, row in df.iterrows():
+    for i, row in df.iterrows():
         sid = row.get("spotify_id")
         if sid:
-            by_id[sid] = row
+            by_id[sid] = i  # store row index, not the row itself
 
         title_canon = row.get("title_canon") or canon_title(row.get("title_raw", ""))
         artist_canon = row.get("artist_primary_canon") or canon_artist_primary(row.get("artists_raw", []))
 
         if title_canon and artist_canon:
-            by_key[(title_canon, artist_canon)].append(row)
+            by_key[(title_canon, artist_canon)].append(i)
 
         if artist_canon:
-            by_artist[artist_canon].append(row)
+            by_artist[artist_canon].append(i)
 
     return {"by_id": by_id, "by_key": by_key, "by_artist": by_artist}
 
+
 # === Match Resolution ===
 
-def match_track(track, indexes, duration_tol=2000):
-    """Try to resolve a Spotify API track dict to a dataset row."""
+def match_track(track, indexes, df, duration_tol=2000):
+    """Resolve a Spotify API track dict to a row in df using prebuilt indexes."""
     tid = track.get("id")
     if tid and tid in indexes["by_id"]:
-        return indexes["by_id"][tid]
+        return df.iloc[indexes["by_id"][tid]].to_dict()
 
     title_canon = canon_title(track.get("name", ""))
     artists = track.get("artists", [])
     artist_names = [a["name"] for a in artists] if artists else []
     artist_canon = canon_artist_primary(artist_names)
 
-    candidates = indexes["by_key"].get((title_canon, artist_canon), [])
+    candidates_idx = indexes["by_key"].get((title_canon, artist_canon), [])
     dur = track.get("duration_ms")
 
-    if dur and candidates:
-        candidates = [
-            c for c in candidates
-            if c.get("duration_ms") and abs(c["duration_ms"] - dur) <= duration_tol
+    if dur and candidates_idx:
+        candidates_idx = [
+            i for i in candidates_idx
+            if df.at[i, "duration_ms"] and abs(df.at[i, "duration_ms"] - dur) <= duration_tol
         ]
 
-    if not candidates:
+    if not candidates_idx:
         return None
-    if len(candidates) == 1:
-        return candidates[0]
+    if len(candidates_idx) == 1:
+        return df.iloc[candidates_idx[0]].to_dict()
 
+    candidates = [df.iloc[i].to_dict() for i in candidates_idx]
     return _choose_best(candidates)
 
 def _choose_best(candidates):

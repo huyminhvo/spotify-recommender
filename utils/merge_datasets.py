@@ -7,7 +7,7 @@ from pathlib import Path
 import hashlib, json
 
 import pandas as pd
-from matcher import canon_title, canon_artist_primary
+from utils.matcher import canon_title, canon_artist_primary
 
 # ---------- Audio feature list ----------
 AUDIO_FEATURES = [
@@ -298,28 +298,26 @@ def get_merged_dataset(paths: list[str],
                        force_rebuild: bool = False) -> pd.DataFrame:
     """
     Get the merged dataset, using a cached Parquet file if available.
-
-    Parameters
-    ----------
-    paths : list of str
-        Input CSV file paths.
-    cache_dir : str
-        Directory for cached Parquet files.
-    force_rebuild : bool
-        If True, rebuild even if a cached file is available.
-
-    Returns
-    -------
-    DataFrame
-        Merged dataset with metadata + audio features.
+    Also persists a pickled indexes object for fast future loading.
     """
     Path(cache_dir).mkdir(parents=True, exist_ok=True)
     fp = _fingerprint_inputs(paths)
     target = Path(cache_dir) / f"merged_{fp}.parquet"
-    if target.exists() and not force_rebuild:
-        print(f"[cache] Using cached {target.name}")
+    index_target = Path(cache_dir) / f"indexes_{fp}.pkl"
+
+    if target.exists() and index_target.exists() and not force_rebuild:
+        print(f"[cache] Using cached {target.name} and {index_target.name}")
         return pd.read_parquet(target)
-    print("[cache] Rebuilding merged dataset…")
+
+    print("[cache] Rebuilding merged dataset + indexes…")
     df = merge_datasets(paths)
     df.to_parquet(target, index=False)
+
+    # build and save indexes alongside parquet
+    from utils.matcher import build_indexes
+    indexes = build_indexes(df)
+    with open(index_target, "wb") as f:
+        import pickle
+        pickle.dump(indexes, f)
+
     return df
