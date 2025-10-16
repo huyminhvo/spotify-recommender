@@ -3,7 +3,19 @@
 A music recommendation engine that generates personalized playlists using audio features from millions of tracks.  
 Built in Python with **pandas** and **scikit-learn**, designed for scalability and extensibility.
 
----
+## 🚀 Web App MVP (October 2025)
+
+The recommender now runs as a Streamlit web app.  
+Paste any Spotify playlist URL and instantly generate personalized song recommendations.
+
+**Features:**
+- Full Spotify API integration  
+- Album art + similarity ranking display  
+- Clean interactive interface built with Streamlit  
+
+**Run locally:**
+pip install -r webapp/requirements.txt
+streamlit run webapp/streamlit_app.py
 
 ## 🚀 Features
 - Merge and deduplicate multiple Spotify datasets (millions of rows).
@@ -11,7 +23,9 @@ Built in Python with **pandas** and **scikit-learn**, designed for scalability a
 - Generate top-N recommendations for any Spotify playlist.
 - CLI interface for quick testing and usage.
 
----
+## 📋 Prerequisites
+- Python 3.9+
+- A Spotify Developer account + API credentials in `.env`
 
 ## 🛠️ Installation
 
@@ -55,13 +69,13 @@ spotify-recommender/
 ```
 
 ## 🔮 Roadmap
-Web app interface for playlist generation
+- Web app interface for playlist generation
 
-Support for multiple user profiles
+- Support for multiple user profiles
 
-Mood / energy sliders for finer control
+- Mood / energy sliders for finer control
 
-Deployment on cloud platform
+- Deployment on cloud platform
 
 ## ⚖️ License
 This project is for educational and portfolio purposes.
