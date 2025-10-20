@@ -1,19 +1,19 @@
-# 🎧 Spotify Recommender
+# Spotify Recommender
 
 A full-stack music recommendation system that generates personalized playlists from any Spotify playlist.  
 Built in **Python**, powered by **pandas**, **scikit-learn**, and **Streamlit**, and integrated with the **Spotify Web API**.
 
 ---
 
-## 🚀 Web App MVP (October 2025)
+## Web App MVP (October 2025)
 
 Paste any Spotify playlist URL and instantly generate personalized track recommendations — complete with album art, artist info, and direct Spotify links.
 
 **Highlights**
-- 🎵 Full Spotify API integration (auth, playlist parsing, album art)
-- 🧠 Recommendation engine using cosine similarity on track feature vectors
-- 🖥️ Streamlit web interface (interactive and deployable)
-- 💾 Cached dataset merge for fast repeat runs
+- Full Spotify API integration (auth, playlist parsing, album art)
+- Recommendation engine using cosine similarity on track feature vectors
+- Streamlit web interface (interactive and deployable)
+- Cached dataset merge for fast repeat runs
 
 **Run locally**
 ```bash
@@ -23,7 +23,7 @@ streamlit run webapp/streamlit_app.py
 
 ---
 
-## 🧩 Features
+## Features
 - Merge + deduplicate multiple Spotify datasets (millions of rows)
 - Normalize and compare audio features across tracks
 - Generate top-N recommendations from any Spotify playlist
@@ -31,7 +31,7 @@ streamlit run webapp/streamlit_app.py
 
 ---
 
-## ⚙️ Setup
+## Setup
 
 ### 1. Clone & Create Environment
 ```bash
@@ -53,7 +53,7 @@ SPOTIPY_REDIRECT_URI=http://localhost:8888/callback
 
 ---
 
-## 🧠 CLI Usage <a name="cli-usage"></a>
+## CLI Usage <a name="cli-usage"></a>
 You can also (alternatively) run the recommender directly from the command line.
 
 ```bash
@@ -71,7 +71,7 @@ Top 20 recommended tracks:
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 ```
 spotify-recommender/
 │── webapp/                # Streamlit web interface (MVP)
@@ -87,14 +87,14 @@ spotify-recommender/
 
 ---
 
-## 📈 Roadmap
-- ✅ Web app MVP (October 2025)
-- 🌐 Cloud deployment (Streamlit Cloud / Render)
-- 🧩 Mood & energy sliders
-- 👥 Multi-profile recommendations
-- 🎥 Demo video + hosted link
+## Roadmap
+- Web app MVP (October 2025)
+- Cloud deployment (Streamlit Cloud / Render)
+- Mood & energy sliders
+- Multi-profile recommendations
+- Demo video + hosted link
 
 ---
 
-## ⚖️ License
+## License
 For educational and portfolio purposes only.
