@@ -8,6 +8,19 @@ Handles application of feature weights (from sliders/UI).
 import numpy as np
 from typing import Dict, Sequence
 
+DEFAULT_WEIGHTS = {
+    "danceability": 1.5,
+    "energy": 2.0,
+    "valence": 0.5,
+    "acousticness": 2.0,
+    "instrumentalness": 2.0,
+    "liveness": 0.5,
+    "speechiness": 0.25,
+    "tempo": 1.0,
+    "loudness": 0.75,
+    "duration_ms": 0.25,
+}
+
 def apply_weights(
     X: np.ndarray, 
     weights: Dict[str, float], 

@@ -56,19 +56,45 @@ a:hover {
 </style>
 """, unsafe_allow_html=True)
 
-st.set_page_config(page_title="Spotify Recommender", page_icon="🎧", layout="wide")
+st.markdown("""
+<style>
+/* Match input labels to description color */
+label, .stSlider label, .stTextInput label {
+    color: #b3b3b3 !important;
+    font-weight: 500;
+}
+</style>
+""", unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Apply font globally */
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+
+# Title
+st.markdown("<h1 style='color:#1DB954; '>Spotify Recommender</h1>", unsafe_allow_html=True)
+
+# Description (tight to title)
 st.markdown(
     """
-    <div style='font-size:17px; color:#b3b3b3;'>
-    Paste a Spotify playlist link below to generate personalized song recommendations.<br>
+    <div style='font-size:17px; color:#b3b3b3; margin-bottom:8px;'>
+        Paste a Spotify playlist link below to generate personalized song recommendations.
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-st.title("Spotify Recommender (MVP)")
-st.caption("Paste a Spotify playlist URL and get top song recommendations.")
+# spacer between description and input
+st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+
 
 playlist_url = st.text_input("Playlist URL", placeholder="https://open.spotify.com/playlist/...")
 top_n = st.slider("Number of recommendations", min_value=5, max_value=25, value=10)
@@ -78,7 +104,7 @@ if go:
     if not playlist_url.strip():
         st.warning("Please enter a playlist URL.")
     else:
-        with st.spinner("Fetching recommendations... this may take up to a minute on first run"):
+        with st.spinner("Fetching recommendations..."):
             try:
                 recs = get_recommendations(playlist_url, top_n=top_n)
 
@@ -119,7 +145,7 @@ if go:
                                 # optional similarity metric
                                 sim = row.get("similarity")
                                 if sim is not None:
-                                    st.caption(f"Similarity: {sim:.4f}")
+                                    st.caption(f"Recommendation score: {sim:.4f}")
 
             except Exception as e:
                 st.error(f"Error: {e}")
