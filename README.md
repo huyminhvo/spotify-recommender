@@ -7,7 +7,7 @@ Built in **Python**, powered by **pandas**, **scikit-learn**, and **Streamlit**,
 
 ## Web App MVP (October 2025)
 
-Paste any Spotify playlist URL and instantly generate personalized track recommendations — complete with album art, artist info, and direct Spotify links.
+Paste any Spotify playlist URL and instantly generate personalized track recommendations, complete with album art, artist info, and direct Spotify links.
 
 **Highlights**
 - Full Spotify API integration (auth, playlist parsing, album art)
@@ -68,23 +68,6 @@ Top 20 recommended tracks:
 2. Artist – Track
 ...
 ```
-
----
-
-## Project Structure
-```
-spotify-recommender/
-│── webapp/                # Streamlit web interface (MVP)
-│   ├── streamlit_app.py
-│   └── interface.py
-│── recommender/            # Core recommendation logic
-│── utils/                  # Spotify API + dataset tools
-│── data/                   # Raw and processed datasets (ignored)
-│── cli.py                  # CLI entry point
-│── requirements.txt
-│── README.md
-```
-
 ---
 
 ## Roadmap
