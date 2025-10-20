@@ -3,7 +3,7 @@
 A full-stack music recommendation system that generates personalized playlists from any Spotify playlist.  
 Built in **Python**, powered by **pandas**, **scikit-learn**, and **Streamlit**, and integrated with the **Spotify Web API**.
 
----
+
 
 ## Web App MVP (October 2025)
 
@@ -21,7 +21,7 @@ pip install -r webapp/requirements.txt
 streamlit run webapp/streamlit_app.py
 ```
 
----
+
 
 ## Features
 - Merge + deduplicate multiple Spotify datasets (millions of rows)
@@ -29,7 +29,7 @@ streamlit run webapp/streamlit_app.py
 - Generate top-N recommendations from any Spotify playlist
 - Lightweight, modular codebase ready for scaling and experimentation
 
----
+
 
 ## Setup
 
@@ -51,7 +51,7 @@ SPOTIPY_CLIENT_SECRET=your_client_secret
 SPOTIPY_REDIRECT_URI=http://localhost:8888/callback
 ```
 
----
+
 
 ## CLI Usage <a name="cli-usage"></a>
 You can also (alternatively) run the recommender directly from the command line.
@@ -68,7 +68,7 @@ Top 20 recommended tracks:
 2. Artist – Track
 ...
 ```
----
+
 
 ## Roadmap
 - Web app MVP (October 2025)
@@ -77,7 +77,7 @@ Top 20 recommended tracks:
 - Multi-profile recommendations
 - Demo video + hosted link
 
----
+
 
 ## License
-For educational and portfolio purposes only.
+MIT License © 2025 Huy Vo
