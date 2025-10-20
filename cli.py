@@ -4,7 +4,9 @@ import argparse
 from pathlib import Path
 from utils.spotify_auth import get_spotify_client
 from utils.spotify_integration import extract_playlist_id, fetch_playlist_profile
+from utils.spotify_playlist import create_recommendation_playlist
 from utils.merge_datasets import get_merged_dataset, _fingerprint_inputs
+from recommender.weightings import DEFAULT_WEIGHTS
 from recommender.recommend import recommend
 import pickle
 
@@ -46,7 +48,20 @@ def main():
         catalog_paths=catalog_paths,
         user_tracks_df=user_tracks_df,
         top_n=args.top_n,
+        user_weights=DEFAULT_WEIGHTS
     )
+
+    # build list of URIs from your DataFrame or results
+    recommended_uris = [f"spotify:track:{tid}" for tid in recs["spotify_id"].head(args.top_n)]
+
+    sp = get_spotify_client()
+    user_id = sp.current_user()["id"]
+
+    playlist_url = create_recommendation_playlist(
+        sp, user_id, recommended_uris, name=f"Top {args.top_n} Recommendations"
+    )
+
+    print(f"\n✅ Created new playlist: {playlist_url}")
 
     print("\n=== Recommendations ===")
     print(recs[["title_raw", "artists_raw", "similarity"]])

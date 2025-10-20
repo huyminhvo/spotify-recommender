@@ -11,6 +11,7 @@ data/raw/
 data/processed/
 *.parquet
 *.csv
+.env
 
 # Cache
 *.pkl
