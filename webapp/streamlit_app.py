@@ -1,7 +1,15 @@
 #link to ari playlist: https://open.spotify.com/playlist/7BH80QsOwuL7h92CG9ap9w?si=e1748481e0a742e0
 import streamlit as st
 import pandas as pd
-from interface import get_recommendations  # adjust import if needed
+from interface import get_recommendations, add_recommendations_to_spotify
+from utils.spotify_auth import get_spotify_client
+
+# --- Maintain persistent Spotify client across reruns ---
+if "sp_client" not in st.session_state:
+    try:
+        st.session_state.sp_client = get_spotify_client()
+    except Exception as e:
+        st.error(f"Spotify authentication failed: {e}")
 
 # Force Streamlit to allow custom styling overrides
 st.set_page_config(page_title="Spotify Recommender", page_icon="🎧", layout="wide", initial_sidebar_state="collapsed")
@@ -107,45 +115,49 @@ if go:
         with st.spinner("Fetching recommendations..."):
             try:
                 recs = get_recommendations(playlist_url, top_n=top_n)
+                st.session_state.recs = recs  # ✅ persist recs across reruns
 
                 if recs.empty:
                     st.error("No recommendations found.")
                 else:
                     st.success(f"Top {len(recs)} recommendations:")
-
-                    cols_per_row = 3
-                    for i in range(0, len(recs), cols_per_row):
-                        cols = st.columns(cols_per_row)
-                        for j, col in enumerate(cols):
-                            if i + j >= len(recs):
-                                break
-                            row = recs.iloc[i + j]
-
-                            with col:
-                                # album image
-                                if row.get("album_art_url"):
-                                    st.image(row["album_art_url"], use_container_width=True)
-
-                                # title + artist
-                                title = row.get("title_raw", "Unknown title")
-                                artists = row.get("artists_raw", [])
-                                if isinstance(artists, list):
-                                    artists_str = ", ".join(artists)
-                                else:
-                                    artists_str = str(artists)
-                                st.markdown(f"**{title}**  \n{artists_str}")
-
-                                # Spotify link
-                                track_url = f"https://open.spotify.com/track/{row['spotify_id']}"
-                                st.markdown(
-                                    f"[🎧 Listen on Spotify]({track_url})",
-                                    unsafe_allow_html=True,
-                                )
-
-                                # optional similarity metric
-                                sim = row.get("similarity")
-                                if sim is not None:
-                                    st.caption(f"Recommendation score: {sim:.4f}")
-
             except Exception as e:
                 st.error(f"Error: {e}")
+
+if "recs" in st.session_state and not st.session_state.recs.empty:
+    recs = st.session_state.recs
+
+    cols_per_row = 3
+    for i in range(0, len(recs), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for j, col in enumerate(cols):
+            if i + j >= len(recs):
+                break
+            row = recs.iloc[i + j]
+            with col:
+                if row.get("album_art_url"):
+                    st.image(row["album_art_url"], use_container_width=True)
+                title = row.get("title_raw", "Unknown title")
+                artists = row.get("artists_raw", [])
+                artists_str = ", ".join(artists) if isinstance(artists, list) else str(artists)
+                st.markdown(f"**{title}**  \n{artists_str}")
+                track_url = f"https://open.spotify.com/track/{row['spotify_id']}"
+                st.markdown(f"[🎧 Listen on Spotify]({track_url})", unsafe_allow_html=True)
+                sim = row.get("similarity")
+                if sim is not None:
+                    st.caption(f"Recommendation score: {sim:.4f}")
+
+    # spacer + button
+    st.markdown("<div style='height:20px;'></div>", unsafe_allow_html=True)
+    if st.button("Add These Songs to Spotify Playlist 🎶"):
+        with st.spinner("Creating playlist in your Spotify account..."):
+            try:
+                playlist_url = add_recommendations_to_spotify(
+                    st.session_state.recs,
+                    sp=st.session_state.sp_client
+                )
+                st.success(f"✅ Playlist created! [Open on Spotify]({playlist_url})")
+            except Exception as e:
+                st.error(f"Failed to create playlist: {e}")
+
+
