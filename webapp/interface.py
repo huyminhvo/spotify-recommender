@@ -70,3 +70,19 @@ def get_recommendations(playlist_url: str, top_n: int = 10) -> pd.DataFrame:
 
     recs["album_art_url"] = art_urls
     return recs.reset_index(drop=True)
+
+def add_recommendations_to_spotify(recs_df, playlist_name="Recommended Songs", sp=None):
+    """
+    Creates a new Spotify playlist in the user's account containing the recommended songs.
+    Returns the new playlist URL.
+    """
+    sp = sp or get_spotify_client()
+    user_id = sp.me()["id"]
+
+    track_uris = [f"spotify:track:{sid}" for sid in recs_df["spotify_id"].dropna()]
+    if not track_uris:
+        raise ValueError("No valid Spotify track IDs found in recommendations.")
+
+    playlist_url = create_recommendation_playlist(sp, user_id, track_uris, name=playlist_name)
+    return playlist_url
+
