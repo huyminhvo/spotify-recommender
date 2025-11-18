@@ -16,6 +16,8 @@ def recommend(
     top_n=10,
     min_popularity=20,
     year_range=None,
+    use_pca=True,
+    pca_components=5
 ):
     catalog = get_merged_dataset(catalog_paths)
     scaler = fit_scaler(catalog, FEATURE_COLS)
@@ -36,6 +38,21 @@ def recommend(
     X_cands = transform(candidates, scaler, FEATURE_COLS)
     if user_weights is not None:
         X_cands = apply_weights(X_cands, user_weights, FEATURE_COLS)
+
+    # ----- Optional PCA dimensionality reduction -----
+    if use_pca:
+        from recommender.cluster import fit_pca, transform_pca
+
+        # Fit PCA on all catalog rows (not just candidates)
+        X_catalog = transform(catalog, scaler, FEATURE_COLS)
+        if user_weights is not None:
+            X_catalog = apply_weights(X_catalog, user_weights, FEATURE_COLS)
+
+        pca = fit_pca(X_catalog, n_components=pca_components)
+
+        # Transform everything into PCA space
+        X_cands = transform_pca(X_cands, pca)
+        u_vec = transform_pca(u_vec.reshape(1, -1), pca).reshape(-1)
 
     sims = cosine(u_vec, X_cands)
     candidates = candidates.copy()
