@@ -7,12 +7,16 @@ import pandas as pd
 # === Canonicalization ===
 
 def normalize_ascii(s: str) -> str:
-    """Fold accents and strip to plain ASCII."""
+    """
+    Fold accents and strip to plain ASCII.
+    """
     s = str(s or "")
     return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
 
 def canon_title(title: str) -> str:
-    """Canonicalize a title: strip accents, lowercase, remove variant tags, normalize spacing."""
+    """
+    Canonicalize a title: strip accents, lowercase, remove variant tags, normalize spacing.
+    """
     t = normalize_ascii(title).strip().lower()
     STRIP_KEYWORDS = [
         "clean", "explicit", "radio edit", "remaster", "remastered",
@@ -44,7 +48,9 @@ def canon_title(title: str) -> str:
     return t
 
 def canon_artist_primary(artists_raw) -> str:
-    """Canonicalize the first artist in a list/string."""
+    """
+    Canonicalize the first artist in a list/string.
+    """
     if isinstance(artists_raw, list) and artists_raw:
         primary = artists_raw[0]
     elif isinstance(artists_raw, str):
@@ -63,11 +69,11 @@ def canon_artist_primary(artists_raw) -> str:
     primary = re.sub(r"\s+", " ", primary)
     return primary
 
-# Variant tags to deprioritize in tie-breaking
+# variant tags to deprioritize in tie-breaking
 VARIANT_TAGS = ["live", "remix", "instrumental", "clean", "explicit",
                 "karaoke", "cover", "demo", "edit"]
 
-# === Index Building ===
+# === Index building ===
 
 def build_indexes(df: pd.DataFrame):
     """
@@ -93,10 +99,12 @@ def build_indexes(df: pd.DataFrame):
     return {"by_id": by_id, "by_key": by_key, "by_artist": by_artist}
 
 
-# === Match Resolution ===
+# === Match resolution ===
 
 def match_track(track, indexes, df, duration_tol=2000):
-    """Resolve a Spotify API track dict to a row in df using prebuilt indexes."""
+    """
+    Resolve a Spotify API track dict to a row in df using prebuilt indexes.
+    """
     tid = track.get("id")
     if tid and tid in indexes["by_id"]:
         return df.iloc[indexes["by_id"][tid]].to_dict()
@@ -124,7 +132,9 @@ def match_track(track, indexes, df, duration_tol=2000):
     return _choose_best(candidates)
 
 def _choose_best(candidates):
-    """Prefer canonical versions over variants, then highest popularity & year."""
+    """
+    Prefer canonical versions over variants, then highest popularity & year.
+    """
     def variant_score(row):
         name = (row.get("title_raw") or "").lower()
         for tag in VARIANT_TAGS:

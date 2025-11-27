@@ -1,6 +1,3 @@
-import pandas as pd
-from pathlib import Path
-
 from utils.merge_datasets import get_merged_dataset
 from recommender.preprocess import fit_scaler, transform
 from recommender.profile import build_user_profile
@@ -39,18 +36,18 @@ def recommend(
     if user_weights is not None:
         X_cands = apply_weights(X_cands, user_weights, FEATURE_COLS)
 
-    # ----- Optional PCA dimensionality reduction -----
+    # === PCA dimensionality reduction ===
     if use_pca:
         from recommender.cluster import fit_pca, transform_pca
 
-        # Fit PCA on all catalog rows (not just candidates)
+        # fit PCA on all catalog rows
         X_catalog = transform(catalog, scaler, FEATURE_COLS)
         if user_weights is not None:
             X_catalog = apply_weights(X_catalog, user_weights, FEATURE_COLS)
 
         pca = fit_pca(X_catalog, n_components=pca_components)
 
-        # Transform everything into PCA space
+        # transform everything into PCA space
         X_cands = transform_pca(X_cands, pca)
         u_vec = transform_pca(u_vec.reshape(1, -1), pca).reshape(-1)
 

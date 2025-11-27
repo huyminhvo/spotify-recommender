@@ -1,3 +1,2 @@
-"""
-Core recommender system package.
-"""
+# core recommender system package
+

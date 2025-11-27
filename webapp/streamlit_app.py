@@ -1,20 +1,17 @@
-#link to ari playlist: https://open.spotify.com/playlist/7BH80QsOwuL7h92CG9ap9w?si=e1748481e0a742e0
 import streamlit as st
-import pandas as pd
 from interface import get_recommendations, add_recommendations_to_spotify
 from utils.spotify_auth import get_spotify_client
 
-# --- Maintain persistent Spotify client across reruns ---
+# maintain persistent Spotify client across reruns
 if "sp_client" not in st.session_state:
     try:
         st.session_state.sp_client = get_spotify_client()
     except Exception as e:
         st.error(f"Spotify authentication failed: {e}")
 
-# Force Streamlit to allow custom styling overrides
-st.set_page_config(page_title="Spotify Recommender", page_icon="🎧", layout="wide", initial_sidebar_state="collapsed")
+# force Streamlit to allow custom styling overrides
+st.set_page_config(page_title="Spotify Recommender", layout="wide", initial_sidebar_state="collapsed")
 
-# Force dark theme for consistent visual style
 st.markdown(
     """
     <style>
@@ -29,7 +26,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- Custom CSS overrides ---
+# === Custom CSS overrides ===
 st.markdown("""
 <style>
 /* Global app background */
@@ -87,10 +84,10 @@ html, body, [class*="css"] {
 
 
 
-# Title
+# title
 st.markdown("<h1 style='color:#1DB954; '>Spotify Recommender</h1>", unsafe_allow_html=True)
 
-# Description (tight to title)
+# description 
 st.markdown(
     """
     <div style='font-size:17px; color:#b3b3b3; margin-bottom:8px;'>
@@ -115,7 +112,7 @@ if go:
         with st.spinner("Fetching recommendations..."):
             try:
                 recs = get_recommendations(playlist_url, top_n=top_n)
-                st.session_state.recs = recs  # ✅ persist recs across reruns
+                st.session_state.recs = recs  # persist recs across reruns
 
                 if recs.empty:
                     st.error("No recommendations found.")
@@ -142,21 +139,21 @@ if "recs" in st.session_state and not st.session_state.recs.empty:
                 artists_str = ", ".join(artists) if isinstance(artists, list) else str(artists)
                 st.markdown(f"**{title}**  \n{artists_str}")
                 track_url = f"https://open.spotify.com/track/{row['spotify_id']}"
-                st.markdown(f"[🎧 Listen on Spotify]({track_url})", unsafe_allow_html=True)
+                st.markdown(f"[Listen on Spotify]({track_url})", unsafe_allow_html=True)
                 sim = row.get("similarity")
                 if sim is not None:
                     st.caption(f"Recommendation score: {sim:.4f}")
 
     # spacer + button
     st.markdown("<div style='height:20px;'></div>", unsafe_allow_html=True)
-    if st.button("Add These Songs to Spotify Playlist 🎶"):
+    if st.button("Add These Songs to Spotify Playlist"):
         with st.spinner("Creating playlist in your Spotify account..."):
             try:
                 playlist_url = add_recommendations_to_spotify(
                     st.session_state.recs,
                     sp=st.session_state.sp_client
                 )
-                st.success(f"✅ Playlist created! [Open on Spotify]({playlist_url})")
+                st.success(f"Playlist created! [Open on Spotify]({playlist_url})")
             except Exception as e:
                 st.error(f"Failed to create playlist: {e}")
 
