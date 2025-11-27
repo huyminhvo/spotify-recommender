@@ -1,9 +1,3 @@
-"""
-profile.py
-----------
-Builds user profile vector(s) from their seed tracks.
-"""
-
 import numpy as np
 from typing import Literal, List, Union
 
@@ -34,7 +28,7 @@ def build_user_profile(
         - For "clustered": list of vectors, each shape (d,).
     """
     if X_user.size == 0:
-        raise ValueError("User feature matrix is empty — cannot build profile.")
+        raise ValueError("User feature matrix is empty, cannot build profile.")
 
     if method == "mean":
         return np.nanmean(X_user, axis=0)
@@ -43,7 +37,7 @@ def build_user_profile(
         return np.nanmedian(X_user, axis=0)
 
     elif method == "clustered":
-        # Placeholder — implement later with k-means on X_user
+        # placeholder
         raise NotImplementedError("Clustered user profiling not yet implemented.")
 
     else:

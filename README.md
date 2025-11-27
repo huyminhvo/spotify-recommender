@@ -8,7 +8,7 @@ Built in Python, powered by pandas, scikit-learn, and Streamlit, and integrated 
 - Paste any Spotify playlist URL to get personalized recommendations
 - Album art, artist names, and direct Spotify links
 - Full Spotify API integration (auth, playlist parsing, album art)
-- Streamlit web interface with clean dark theme
+- Streamlit web interface
 - Cached dataset merging for fast repeat runs
 
 
@@ -19,13 +19,13 @@ cd spotify-recommender
 python -m venv venv
 venv\Scripts\activate    # (Windows)
 source venv/bin/activate   # (Mac/Linux)
-pip install -r webapp/requirements.txt
+pip install -r requirements.txt
 streamlit run webapp/streamlit_app.py
 ```
 
 
 ## Environment Variables
-Create a .env file for local use (or set these as Streamlit secrets on deployment):
+Create a .env file for local use:
 ```bash
 SPOTIPY_CLIENT_ID=your_client_id
 SPOTIPY_CLIENT_SECRET=your_client_secret
@@ -41,9 +41,9 @@ SPOTIPY_REDIRECT_URI=http://localhost:8888/callback
 
 
 ## Roadmap
-- Cloud deployment (Streamlit Cloud / Render)
+- Streamlit Cloud deployment
 - Mood and energy sliders
-- Save-to-Spotify playlist export
+- ML-based recommendation enhancements
 - Visual analytics panel
 
 

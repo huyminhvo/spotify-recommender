@@ -1,4 +1,3 @@
-# merge_datasets.py
 from __future__ import annotations
 import ast
 from typing import List, Dict, Any, Optional
@@ -9,16 +8,18 @@ import hashlib, json
 import pandas as pd
 from utils.matcher import canon_title, canon_artist_primary
 
-# ---------- Audio feature list ----------
+# === Audio feature list ===
 AUDIO_FEATURES = [
     "danceability","energy","valence","speechiness","acousticness",
     "instrumentalness","liveness","loudness","tempo","key","mode"
 ]
 
-# ---------- Column auto-mapper ----------
+# === Column auto-mapper ===
 
 def _auto_columns(df: pd.DataFrame) -> Dict[str, Optional[str]]:
-    """Try to guess which columns in df map to our canonical schema."""
+    """
+    Try to guess which columns in df map to the canonical schema.
+    """
     lower = {c.lower(): c for c in df.columns}
     def pick(*cands):
         for c in cands:
@@ -50,10 +51,12 @@ def _auto_columns(df: pd.DataFrame) -> Dict[str, Optional[str]]:
         "mode": "mode" if "mode" in lower else None,
     }
 
-# ---------- Row normalization ----------
+# === Row normalization ===
 
 def _normalize_row(r: pd.Series, colmap: Dict[str, Optional[str]]) -> Dict[str, Any]:
-    """Normalize one raw row into our canonical schema + audio features."""
+    """
+    Normalize one raw row into the canonical schema + audio features.
+    """
 
     # artists to list[str]
     artists_raw = r.get(colmap["artists"], "")
@@ -160,7 +163,7 @@ def _normalize_row(r: pd.Series, colmap: Dict[str, Optional[str]]) -> Dict[str, 
         **feats,
     }
 
-# ---------- Field-wise merge policy ----------
+# === Field-wise merge ===
 
 def _coalesce(a, b):
     if a in (None, "", [], {}):
@@ -213,7 +216,7 @@ def _merge_two_rows(x: Dict[str, Any], y: Dict[str, Any]) -> Dict[str, Any]:
 
     return out
 
-# ---------- Dedup passes ----------
+# === Dedupe passes ===
 
 def _dedupe_by_key(rows: List[Dict[str, Any]], key_fn) -> List[Dict[str, Any]]:
     buckets = defaultdict(list)
@@ -236,7 +239,7 @@ def _dedupe_by_key(rows: List[Dict[str, Any]], key_fn) -> List[Dict[str, Any]]:
             merged.append(r)
     return merged
 
-# ---------- Main merge ----------
+# === Main merge ===
 
 def merge_datasets(paths: List[str], conservative_duration_ms: int = 3000) -> pd.DataFrame:
     """
@@ -280,10 +283,12 @@ def merge_datasets(paths: List[str], conservative_duration_ms: int = 3000) -> pd
 
     return out_df
 
-# ---------- Cache wrapper ----------
+# === Cache wrapper ===
 
 def _fingerprint_inputs(paths: list[str]) -> str:
-    """Stable hash of input files based on path, size, and mtime."""
+    """
+    Stable hash of input files based on path, size, and mtime.
+    """
     items = []
     for p in paths:
         stat = Path(p).stat()

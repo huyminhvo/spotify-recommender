@@ -1,10 +1,3 @@
-# utils/spotify_auth.py
-"""
-spotify_auth.py
----------------
-Central place to create an authenticated Spotipy client.
-"""
-
 import os
 from dotenv import load_dotenv
 import spotipy

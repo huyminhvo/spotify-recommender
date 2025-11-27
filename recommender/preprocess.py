@@ -1,25 +1,8 @@
-"""
-preprocess.py
--------------
-Handles data cleaning, NaN imputation, scaling, and preparation for ML models.
-
-MVP design choices:
-- Use StandardScaler fitted on the CATALOG (not on user seeds).
-- Mild log compression for 'tempo' and 'duration_ms' (auto-detect 'duration').
-- Median imputation per feature (robust, simple).
-- Very light clipping for egregious outliers (kept wide).
-- Preserve strict feature order defined in schema.FEATURE_COLS.
-
-Upgrade path (later):
-- Persist full preprocessing artifacts (scaler + medians + clip bounds) to disk.
-- Consider RobustScaler or quantile transforms if tails remain heavy.
-"""
-
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from typing import List, Optional, Tuple, Iterable, Dict
+from typing import List, Optional, Iterable
 from sklearn.preprocessing import StandardScaler
 
 from . import schema
@@ -34,7 +17,6 @@ def _resolve_duration_column(df: pd.DataFrame) -> str:
         return "duration_ms"
     if "duration" in df.columns:
         return "duration"
-    # Default to schema entry; will error later in extraction if truly missing.
     return "duration_ms"
 
 
@@ -55,16 +37,15 @@ def _apply_special_transforms(df: pd.DataFrame, feature_order: List[str]) -> pd.
     """
     out = df.copy()
 
-    # Handle duration column name
+    # handle duration column name
     dur_col = _resolve_duration_column(out)
     if dur_col != "duration_ms" and dur_col in out.columns and "duration_ms" in feature_order:
-        # Create a duration_ms surrogate (assume 'duration' is in SECONDS)
-        # If your 'duration' is already in ms, change factor to 1.0.
+        # create a duration_ms surrogate (assume 'duration' is in seconds)
         out["duration_ms"] = out[dur_col] * 1000.0
 
     # tempo
     if "tempo" in out.columns and "tempo" in feature_order:
-        # Clip first (optional, gentle), then log1p
+        # clip first (optional), then log1p
         lo, hi = schema.CLIP_BOUNDS.get("tempo", (None, None))
         if lo is not None:
             out["tempo"] = np.maximum(out["tempo"], lo)
@@ -96,10 +77,10 @@ def _apply_special_transforms(df: pd.DataFrame, feature_order: List[str]) -> pd.
 
 def _extract_feature_matrix(df: pd.DataFrame, feature_order: List[str]) -> pd.DataFrame:
     """
-    Return a DataFrame with ONLY the requested features, in the exact order.
+    Return a DataFrame with only the requested features, in the exact order.
     Will create 'duration_ms' surrogate if only 'duration' exists.
     """
-    # Ensure duration fallbacks are handled BEFORE selecting columns
+    # ensure duration fallbacks are handled BEFORE selecting columns
     df2 = _apply_special_transforms(_coerce_numeric(df, feature_order + ["duration"]), feature_order)
 
     missing = [c for c in feature_order if c not in df2.columns]
@@ -128,7 +109,7 @@ def fit_scaler(df: pd.DataFrame, feature_cols: Optional[List[str]] = None) -> St
     feats = feature_cols or schema.FEATURE_COLS
     Xdf = _extract_feature_matrix(df, feats)
 
-    # Median impute (robust)
+    # median impute (robust)
     Xdf = Xdf.fillna(Xdf.median(numeric_only=True))
 
     scaler = StandardScaler()
@@ -142,19 +123,18 @@ def transform(
     feature_cols: Optional[List[str]] = None
 ) -> np.ndarray:
     """
-    Transform features into a scaled numpy array using a PRE-FITTED scaler.
+    Transform features into a scaled numpy array using a pre-fitted scaler.
 
     Notes
     -----
     - Applies the same transforms as fit (log1p on tempo/duration, clipping).
-    - Uses median imputation computed on *this df*. For strict correctness,
-      you can upgrade later to persist medians from the catalog fit.
+    - Uses median imputation computed on this df.
     """
     feats = feature_cols or schema.FEATURE_COLS
     Xdf = _extract_feature_matrix(df, feats)
     Xdf = Xdf.fillna(Xdf.median(numeric_only=True))
 
     X = scaler.transform(Xdf.values.astype(np.float32))
-    # Ensure finite
+    # ensure finite
     X = np.where(np.isfinite(X), X, 0.0)
     return X.astype(np.float32)

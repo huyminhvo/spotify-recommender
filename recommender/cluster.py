@@ -1,9 +1,3 @@
-"""
-cluster.py
-----------
-Handles PCA and clustering logic for diversification.
-"""
-
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
@@ -18,9 +12,7 @@ def fit_pca(X: np.ndarray, n_components: int = 12) -> PCA:
     X : np.ndarray, shape (n_samples, n_features)
         Scaled feature matrix (e.g., output of preprocess.transform).
     n_components : int
-        Maximum number of principal components to keep. This will be
-        capped at the number of original features so we don't request
-        more PCs than dimensions.
+        Maximum number of principal components to keep.
 
     Returns
     -------
@@ -30,7 +22,7 @@ def fit_pca(X: np.ndarray, n_components: int = 12) -> PCA:
     if X.ndim != 2:
         raise ValueError(f"X must be 2D (n_samples, n_features); got shape {X.shape}")
 
-    # Do not request more components than available features
+    # do not request more components than available features
     n_feats = X.shape[1]
     n_used = min(n_components, n_feats)
 
@@ -46,7 +38,7 @@ def transform_pca(X: np.ndarray, pca: PCA) -> np.ndarray:
     Parameters
     ----------
     X : np.ndarray, shape (n_samples, n_features)
-        Scaled feature matrix in the *original* feature space.
+        Scaled feature matrix in the original feature space.
     pca : PCA
         Fitted PCA object from fit_pca.
 

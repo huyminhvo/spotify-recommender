@@ -4,5 +4,6 @@ numpy
 scikit-learn
 spotipy
 python-dotenv
-requests
-pillow
+pyarrow
+
+

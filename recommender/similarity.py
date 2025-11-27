@@ -1,4 +1,3 @@
-# similarity.py
 """
 similarity.py
 -------------
@@ -28,26 +27,26 @@ def cosine(u: np.ndarray, V: np.ndarray) -> np.ndarray:
     if V.ndim != 2:
         raise ValueError("Input V must be a 2D array.")
 
-    # Normalize u
+    # normalize u
     u_norm = np.linalg.norm(u)
     if u_norm == 0:
         return np.zeros(V.shape[0], dtype=np.float32)
 
-    # Normalize rows of V
+    # normalize rows of V
     V_norms = np.linalg.norm(V, axis=1)
     safe_V = np.where(V_norms[:, None] != 0, V / V_norms[:, None], 0.0)
 
-    # Normalize u once
+    # normalize u once
     u_unit = u / u_norm
 
-    # Dot product = cosine similarity
+    # dot product = cosine similarity
     sims = safe_V @ u_unit
     return sims.astype(np.float32)
 
 
 def weighted_cosine(u: np.ndarray, V: np.ndarray) -> np.ndarray:
     """
-    For now, just alias cosine. Later, integrate with weightings.py.
+    *Placeholder function*
 
     Parameters
     ----------

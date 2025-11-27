@@ -1,10 +1,3 @@
-# weightings.py
-"""
-weightings.py
--------------
-Handles application of feature weights (from sliders/UI).
-"""
-
 import numpy as np
 from typing import Dict, Sequence
 
@@ -44,7 +37,7 @@ def apply_weights(
     np.ndarray
         Weighted features, same shape as input.
     """
-    # Build weight vector aligned with feature_order
+    # build weight vector aligned with feature_order
     w = np.array([weights.get(f, 1.0) for f in feature_order], dtype=np.float32)
 
     if X.ndim == 1:  # single vector

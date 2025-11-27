@@ -1,8 +1,9 @@
 import spotipy
-from spotipy.oauth2 import SpotifyOAuth
 
 def create_recommendation_playlist(sp: spotipy.Spotify, user_id: str, track_uris: list[str], name="Recommended Songs"):
-    """Create a new playlist in the user's account and populate it with tracks."""
+    """
+    Create a new playlist in the user's account and populate it with tracks.
+    """
     print(f"[debug] Creating playlist for user {user_id}, {len(track_uris)} tracks")
 
     try:

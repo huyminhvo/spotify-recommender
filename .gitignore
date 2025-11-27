@@ -1,18 +1,18 @@
-# Python
+# python
 __pycache__/
 *.pyc
 *.pyo
 
-# Virtual environment
+# virtual environment
 venv/
 
-# Data
+# data
 data/raw/
 data/processed/
 *.parquet
 *.csv
 .env
 
-# Cache
+# cache
 *.pkl
 .cache/

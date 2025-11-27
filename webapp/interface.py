@@ -1,8 +1,7 @@
-# webapp/interface.py
 import sys
 from pathlib import Path
 
-# Ensure project root (spotify-recommender) is on sys.path
+# ensure project root (spotify-recommender) is on sys.path
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
@@ -57,11 +56,10 @@ def get_recommendations(playlist_url: str, top_n: int = 10) -> pd.DataFrame:
         user_weights=DEFAULT_WEIGHTS,
     )
 
-    # --- Fetch album-art URLs for each recommended track ---
+    # fetch album-art URLs for each recommended track 
     art_urls = []
     for sid in recs["spotify_id"]:
         try:
-            # medium-size image (index 1) is usually ~300 px
             track = sp.track(sid)
             art = track["album"]["images"][1]["url"] if track["album"]["images"] else None
         except Exception:
