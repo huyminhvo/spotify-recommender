@@ -13,6 +13,10 @@ data/processed/
 *.csv
 .env
 
-# cache
-*.pkl
+# Spotify / OAuth cache files
+.cache
 .cache/
+.spotify_cache
+.spotify_cache*
+.env
+.env.*
