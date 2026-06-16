@@ -48,4 +48,4 @@ SPOTIPY_REDIRECT_URI=http://localhost:8888/callback
 
 
 ## License
-MIT License © 2025 Huy Vo
+MIT License © 2026 Huy Vo
