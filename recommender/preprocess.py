@@ -109,11 +109,15 @@ def fit_scaler(df: pd.DataFrame, feature_cols: Optional[List[str]] = None) -> St
     feats = feature_cols or schema.FEATURE_COLS
     Xdf = _extract_feature_matrix(df, feats)
 
-    # median impute (robust)
-    Xdf = Xdf.fillna(Xdf.median(numeric_only=True))
+    # Median-impute from the training/catalog distribution and retain those
+    # values so user tracks and candidates are transformed consistently.
+    impute_values = Xdf.median(numeric_only=True).reindex(feats).fillna(0.0)
+    Xdf = Xdf.fillna(impute_values)
 
     scaler = StandardScaler()
     scaler.fit(Xdf.values.astype(np.float32))
+    scaler.impute_values_ = impute_values.astype(np.float32)
+    scaler.impute_feature_cols_ = list(feats)
     return scaler
 
 
@@ -128,11 +132,18 @@ def transform(
     Notes
     -----
     - Applies the same transforms as fit (log1p on tempo/duration, clipping).
-    - Uses median imputation computed on this df.
+    - Uses median imputation learned by fit_scaler from the catalog/training df.
     """
     feats = feature_cols or schema.FEATURE_COLS
     Xdf = _extract_feature_matrix(df, feats)
-    Xdf = Xdf.fillna(Xdf.median(numeric_only=True))
+    if hasattr(scaler, "impute_values_"):
+        if getattr(scaler, "impute_feature_cols_", list(feats)) != list(feats):
+            raise ValueError("feature_cols must match the columns used to fit the scaler.")
+        impute_values = pd.Series(scaler.impute_values_, index=feats)
+    else:
+        # Backward compatibility for callers with an older persisted scaler.
+        impute_values = Xdf.median(numeric_only=True).reindex(feats).fillna(0.0)
+    Xdf = Xdf.fillna(impute_values)
 
     X = scaler.transform(Xdf.values.astype(np.float32))
     # ensure finite

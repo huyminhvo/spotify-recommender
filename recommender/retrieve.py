@@ -1,9 +1,11 @@
 import pandas as pd
 from typing import Optional, Tuple, Iterable
+from utils.matcher import canon_artist_primary
 
 def filter_candidates(
     catalog: pd.DataFrame,
     exclude_ids: Optional[Iterable[str]] = None,
+    exclude_artists: Optional[Iterable[str]] = None,
     min_popularity: Optional[int] = None,
     max_popularity: Optional[int] = None,
     year_range: Optional[Tuple[int, int]] = None,
@@ -12,6 +14,15 @@ def filter_candidates(
 
     if exclude_ids is not None:
         df = df[~df["spotify_id"].isin(set(exclude_ids))]
+
+    if exclude_artists is not None:
+        artist_set = {artist for artist in exclude_artists if artist}
+        if artist_set:
+            if "artist_primary_canon" in df.columns:
+                candidate_artists = df["artist_primary_canon"]
+            else:
+                candidate_artists = df["artists_raw"].apply(canon_artist_primary)
+            df = df[~candidate_artists.isin(artist_set)]
 
     if min_popularity is not None:
         df = df[df["popularity"].fillna(0) >= min_popularity]

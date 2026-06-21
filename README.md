@@ -40,6 +40,29 @@ SPOTIPY_REDIRECT_URI=http://localhost:8888/callback
 - utils/ : Spotify API integration, caching, and dataset merging
 
 
+## Recommendation and Evaluation
+The main recommender builds a median taste profile from seed tracks, scales audio
+features with catalog-fitted preprocessing, and ranks candidate tracks with cosine
+similarity. The recommendation module also includes comparison baselines:
+
+- `random`: random eligible candidates
+- `popularity`: most popular eligible candidates
+- `unweighted_cosine`: cosine similarity without feature weights
+- `weighted_cosine`: cosine similarity with tuned audio-feature weights
+
+Same-artist exclusion can be enabled to force discovery outside the seed artists.
+
+To compare strategies on a playlist-labeled CSV, run:
+
+```bash
+python scripts/evaluate_recommender.py --catalog-csv path/to/playlists.csv --playlist-col playlist_id --top-k 10 --seed-size 5 --holdout-size 5
+```
+
+The evaluator performs a seed/holdout split per playlist and reports
+`precision_at_k`, `recall_at_k`, `hit_rate_at_k`, `ndcg_at_k`, and average
+recommendation popularity.
+
+
 ## Roadmap
 - Streamlit Cloud deployment
 - Mood and energy sliders

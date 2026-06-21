@@ -1,6 +1,5 @@
 import numpy as np
 from sklearn.decomposition import PCA
-from sklearn.cluster import KMeans
 
 
 def fit_pca(X: np.ndarray, n_components: int = 12) -> PCA:
@@ -21,10 +20,12 @@ def fit_pca(X: np.ndarray, n_components: int = 12) -> PCA:
     """
     if X.ndim != 2:
         raise ValueError(f"X must be 2D (n_samples, n_features); got shape {X.shape}")
+    if X.shape[0] == 0 or X.shape[1] == 0:
+        raise ValueError(f"X must have at least one sample and one feature; got shape {X.shape}")
+    if n_components < 1:
+        raise ValueError("n_components must be at least 1.")
 
-    # do not request more components than available features
-    n_feats = X.shape[1]
-    n_used = min(n_components, n_feats)
+    n_used = min(n_components, X.shape[0], X.shape[1])
 
     pca = PCA(n_components=n_used, random_state=0)
     pca.fit(X)
@@ -50,13 +51,3 @@ def transform_pca(X: np.ndarray, pca: PCA) -> np.ndarray:
     if X.ndim != 2:
         raise ValueError(f"X must be 2D (n_samples, n_features); got shape {X.shape}")
     return pca.transform(X)
-
-
-def fit_kmeans(X: np.ndarray, k: int = 8) -> KMeans:
-    """Fit k-means on PCA-transformed features."""
-    pass
-
-
-def predict_kmeans(X: np.ndarray, kmeans: KMeans) -> np.ndarray:
-    """Assign cluster labels to rows of X."""
-    pass

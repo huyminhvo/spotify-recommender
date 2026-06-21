@@ -5,5 +5,5 @@ scikit-learn
 spotipy
 python-dotenv
 pyarrow
-
+pytest
 
