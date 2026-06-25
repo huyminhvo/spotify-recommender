@@ -66,6 +66,13 @@ def test_evaluate_catalog_playlists_compares_baselines():
 
     assert set(results["strategy"]) == {"popularity", "unweighted_cosine"}
     assert set(results["num_playlists"]) == {2}
-    assert {"precision_at_k", "recall_at_k", "hit_rate_at_k", "ndcg_at_k"}.issubset(
-        results.columns
-    )
+    assert {
+        "precision_at_k",
+        "recall_at_k",
+        "hit_rate_at_k",
+        "ndcg_at_k",
+        "coverage_rate",
+        "avg_similarity",
+        "artist_diversity",
+        "artist_duplication_rate",
+    }.issubset(results.columns)

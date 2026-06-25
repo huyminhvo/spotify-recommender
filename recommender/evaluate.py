@@ -8,6 +8,7 @@ import pandas as pd
 
 from recommender.recommend import RecommendationStrategy, recommend_from_catalog
 from recommender.weightings import DEFAULT_WEIGHTS
+from utils.matcher import canon_artist_primary
 
 
 DEFAULT_STRATEGIES: tuple[RecommendationStrategy, ...] = (
@@ -55,6 +56,41 @@ def ranking_metrics(recommended_ids: Sequence[str], relevant_ids: Iterable[str],
         "recall_at_k": float(recall),
         "hit_rate_at_k": float(hit_rate),
         "ndcg_at_k": float(ndcg),
+    }
+
+
+def recommendation_diagnostics(
+    recs: pd.DataFrame,
+    catalog: pd.DataFrame,
+    strategy: RecommendationStrategy,
+) -> dict[str, float]:
+    rec_count = len(recs)
+    catalog_size = catalog["spotify_id"].dropna().nunique() if "spotify_id" in catalog.columns else len(catalog)
+    coverage_rate = (
+        recs["spotify_id"].dropna().nunique() / catalog_size
+        if rec_count and catalog_size
+        else 0.0
+    )
+
+    if rec_count and "artist_primary_canon" in recs.columns:
+        artists = recs["artist_primary_canon"].dropna()
+    elif rec_count and "artists_raw" in recs.columns:
+        artists = recs["artists_raw"].apply(canon_artist_primary).dropna()
+    else:
+        artists = pd.Series(dtype=object)
+    artists = artists[artists != ""]
+    artist_diversity = artists.nunique() / rec_count if rec_count else 0.0
+    artist_duplication_rate = 1.0 - artist_diversity if rec_count else 0.0
+
+    avg_similarity = 0.0
+    if strategy in {"weighted_cosine", "unweighted_cosine"} and "similarity" in recs.columns and not recs.empty:
+        avg_similarity = float(recs["similarity"].mean())
+
+    return {
+        "coverage_rate": float(coverage_rate),
+        "artist_diversity": float(artist_diversity),
+        "artist_duplication_rate": float(artist_duplication_rate),
+        "avg_similarity": avg_similarity,
     }
 
 
@@ -107,6 +143,7 @@ def evaluate_playlist(
             random_state=cfg.random_state,
         )
         metrics = ranking_metrics(recs["spotify_id"].tolist(), holdout_ids, cfg.top_k)
+        diagnostics = recommendation_diagnostics(recs, catalog, strategy)
         rows.append(
             {
                 "strategy": strategy,
@@ -117,6 +154,7 @@ def evaluate_playlist(
                 if not recs.empty and "popularity" in recs.columns
                 else 0.0,
                 **metrics,
+                **diagnostics,
             }
         )
 
@@ -152,6 +190,10 @@ def evaluate_catalog_playlists(
         "hit_rate_at_k",
         "ndcg_at_k",
         "avg_recommendation_popularity",
+        "avg_similarity",
+        "coverage_rate",
+        "artist_diversity",
+        "artist_duplication_rate",
         "num_recommendations",
     ]
     summary = per_playlist.groupby("strategy", as_index=False)[metric_cols].mean()

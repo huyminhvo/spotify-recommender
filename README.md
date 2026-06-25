@@ -58,9 +58,26 @@ To compare strategies on a playlist-labeled CSV, run:
 python scripts/evaluate_recommender.py --catalog-csv path/to/playlists.csv --playlist-col playlist_id --top-k 10 --seed-size 5 --holdout-size 5
 ```
 
+To evaluate real Spotify playlists with defaults, add playlist URLs to
+`data/examples/playlists.txt`, then run:
+
+```bash
+python scripts/evaluate_recommender.py
+```
+
+By default, the script builds `data/examples/real_playlist_eval.csv` from
+`data/examples/playlists.txt` if needed. On later runs, it reuses that saved CSV.
+For custom runs, pass explicit options:
+
+```bash
+python scripts/evaluate_recommender.py --catalog-csv data/examples/real_playlist_eval.csv --playlist-col playlist_id --top-k 10 --seed-size 5 --holdout-size 5
+```
+
 The evaluator performs a seed/holdout split per playlist and reports
-`precision_at_k`, `recall_at_k`, `hit_rate_at_k`, `ndcg_at_k`, and average
-recommendation popularity.
+ranking metrics (`precision_at_k`, `recall_at_k`, `hit_rate_at_k`, `ndcg_at_k`),
+recommendation diagnostics (`coverage_rate`, `avg_similarity`, `artist_diversity`,
+`artist_duplication_rate`, average recommendation popularity), and build-quality
+metrics (`match_rate`, raw/merged catalog size, duplicate reduction rate).
 
 
 ## Roadmap
