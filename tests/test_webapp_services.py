@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
 
+from webapp import errors
 from webapp import services
 
 
@@ -15,6 +16,12 @@ class FakeSpotify:
 
     def me(self):
         return {"id": "user-id"}
+
+
+class FakeSpotifyError(Exception):
+    def __init__(self, status):
+        self.http_status = status
+        super().__init__(f"spotify status {status}")
 
 
 def test_fetch_album_art_urls_handles_success_missing_and_errors():
@@ -32,7 +39,7 @@ def test_recommendation_track_uris_drop_missing_ids():
 
 
 def test_add_recommendations_to_spotify_rejects_empty_recommendations():
-    with pytest.raises(ValueError, match="No valid Spotify track IDs"):
+    with pytest.raises(errors.NoRecommendationTracksError):
         services.add_recommendations_to_spotify(pd.DataFrame({"spotify_id": [None]}), sp=FakeSpotify())
 
 
@@ -80,3 +87,55 @@ def test_get_recommendations_orchestrates_services(monkeypatch):
 
     assert result["spotify_id"].tolist() == ["rec"]
     assert result["album_art_url"].tolist() == ["rec-medium"]
+
+
+def test_match_playlist_tracks_rejects_invalid_playlist_url():
+    bundle = services.CatalogBundle(paths=[], catalog=pd.DataFrame(), indexes={})
+
+    with pytest.raises(errors.InvalidPlaylistURLError):
+        services.match_playlist_tracks(FakeSpotify(), "not a playlist url!", bundle)
+
+
+def test_match_playlist_tracks_raises_no_catalog_matches(monkeypatch):
+    bundle = services.CatalogBundle(paths=[], catalog=pd.DataFrame(), indexes={})
+
+    monkeypatch.setattr(services, "fetch_playlist_profile", lambda sp, playlist_id, indexes, catalog: pd.DataFrame())
+
+    with pytest.raises(errors.NoCatalogMatchesError):
+        services.match_playlist_tracks(FakeSpotify(), "spotify:playlist:abc123", bundle)
+
+
+def test_match_playlist_tracks_classifies_spotify_rate_limit(monkeypatch):
+    bundle = services.CatalogBundle(paths=[], catalog=pd.DataFrame(), indexes={})
+
+    def raise_rate_limit(sp, playlist_id, indexes, catalog):
+        raise FakeSpotifyError(429)
+
+    monkeypatch.setattr(services, "fetch_playlist_profile", raise_rate_limit)
+
+    with pytest.raises(errors.SpotifyRateLimitError):
+        services.match_playlist_tracks(FakeSpotify(), "spotify:playlist:abc123", bundle)
+
+
+def test_add_recommendations_to_spotify_classifies_auth_and_access_errors(monkeypatch):
+    class AuthFailSpotify(FakeSpotify):
+        def me(self):
+            raise FakeSpotifyError(401)
+
+    with pytest.raises(errors.SpotifyAuthenticationError):
+        services.add_recommendations_to_spotify(pd.DataFrame({"spotify_id": ["a"]}), sp=AuthFailSpotify())
+
+    def raise_access_error(sp, user_id, track_uris, name):
+        raise FakeSpotifyError(403)
+
+    monkeypatch.setattr(services, "create_recommendation_playlist", raise_access_error)
+
+    with pytest.raises(errors.SpotifyPlaylistAccessError):
+        services.add_recommendations_to_spotify(pd.DataFrame({"spotify_id": ["a"]}), sp=FakeSpotify())
+
+
+def test_load_catalog_bundle_raises_missing_dataset(tmp_path):
+    missing_path = tmp_path / "missing.csv"
+
+    with pytest.raises(errors.MissingDatasetError):
+        services.load_catalog_bundle(catalog_paths=[str(missing_path)])

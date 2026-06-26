@@ -1,11 +1,12 @@
 import streamlit as st
-from interface import get_recommendations, add_recommendations_to_spotify
-from utils.spotify_auth import get_spotify_client
+from interface import AppError, add_recommendations_to_spotify, get_recommendations, get_spotify_client_or_raise
 
 # maintain persistent Spotify client across reruns
 if "sp_client" not in st.session_state:
     try:
-        st.session_state.sp_client = get_spotify_client()
+        st.session_state.sp_client = get_spotify_client_or_raise()
+    except AppError as e:
+        st.error(e.user_message)
     except Exception as e:
         st.error(f"Spotify authentication failed: {e}")
 
@@ -118,6 +119,8 @@ if go:
                     st.error("No recommendations found.")
                 else:
                     st.success(f"Top {len(recs)} recommendations:")
+            except AppError as e:
+                st.error(e.user_message)
             except Exception as e:
                 st.error(f"Error: {e}")
 
@@ -154,7 +157,8 @@ if "recs" in st.session_state and not st.session_state.recs.empty:
                     sp=st.session_state.sp_client
                 )
                 st.success(f"Playlist created! [Open on Spotify]({playlist_url})")
+            except AppError as e:
+                st.error(e.user_message)
             except Exception as e:
                 st.error(f"Failed to create playlist: {e}")
-
 

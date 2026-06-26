@@ -18,6 +18,15 @@ from utils.merge_datasets import _fingerprint_inputs, get_merged_dataset
 from utils.spotify_auth import get_spotify_client
 from utils.spotify_integration import extract_playlist_id, fetch_playlist_profile
 from utils.spotify_playlist import create_recommendation_playlist
+from webapp.errors import (
+    AppError,
+    InvalidPlaylistURLError,
+    MissingDatasetError,
+    NoCatalogMatchesError,
+    NoRecommendationTracksError,
+    SpotifyAuthenticationError,
+    classify_spotify_error,
+)
 
 
 @dataclass(frozen=True)
@@ -42,10 +51,13 @@ def cache_dir(root_dir: Path = ROOT_DIR) -> Path:
 
 def load_indexes(catalog_paths: list[str], cache_directory: Path | None = None) -> dict:
     directory = cache_directory or cache_dir()
-    fp = _fingerprint_inputs(catalog_paths)
+    try:
+        fp = _fingerprint_inputs(catalog_paths)
+    except FileNotFoundError as exc:
+        raise MissingDatasetError(str(exc)) from exc
     index_file = directory / f"indexes_{fp}.pkl"
     if not index_file.exists():
-        raise FileNotFoundError(
+        raise MissingDatasetError(
             f"Missing catalog index cache: {index_file}. Rebuild the merged dataset first."
         )
     with index_file.open("rb") as f:
@@ -55,16 +67,30 @@ def load_indexes(catalog_paths: list[str], cache_directory: Path | None = None) 
 def load_catalog_bundle(catalog_paths: list[str] | None = None) -> CatalogBundle:
     paths = catalog_paths or default_catalog_paths()
     directory = cache_dir()
-    catalog = get_merged_dataset(paths, cache_dir=str(directory))
+    missing = [path for path in paths if not Path(path).exists()]
+    if missing:
+        raise MissingDatasetError(f"Missing catalog files: {missing}")
+    try:
+        catalog = get_merged_dataset(paths, cache_dir=str(directory))
+    except FileNotFoundError as exc:
+        raise MissingDatasetError(str(exc)) from exc
     indexes = load_indexes(paths, cache_directory=directory)
     return CatalogBundle(paths=paths, catalog=catalog, indexes=indexes)
 
 
 def match_playlist_tracks(sp, playlist_url: str, bundle: CatalogBundle) -> pd.DataFrame:
-    playlist_id = extract_playlist_id(playlist_url)
-    user_tracks = fetch_playlist_profile(sp, playlist_id, bundle.indexes, bundle.catalog)
+    try:
+        playlist_id = extract_playlist_id(playlist_url)
+    except ValueError as exc:
+        raise InvalidPlaylistURLError(str(exc)) from exc
+
+    try:
+        user_tracks = fetch_playlist_profile(sp, playlist_id, bundle.indexes, bundle.catalog)
+    except Exception as exc:
+        raise classify_spotify_error(exc) from exc
+
     if user_tracks.empty:
-        raise ValueError("No valid tracks from this playlist could be matched to the catalog.")
+        raise NoCatalogMatchesError()
     return user_tracks
 
 
@@ -100,8 +126,17 @@ def attach_album_art(sp, recs: pd.DataFrame) -> pd.DataFrame:
     return recs.reset_index(drop=True)
 
 
+def get_spotify_client_or_raise():
+    try:
+        return get_spotify_client()
+    except AppError:
+        raise
+    except Exception as exc:
+        raise SpotifyAuthenticationError(str(exc)) from exc
+
+
 def get_recommendations(playlist_url: str, top_n: int = 10, sp=None) -> pd.DataFrame:
-    sp = sp or get_spotify_client()
+    sp = sp or get_spotify_client_or_raise()
     bundle = load_catalog_bundle()
     user_tracks = match_playlist_tracks(sp, playlist_url, bundle)
     recs = generate_recommendations(bundle, user_tracks, top_n=top_n)
@@ -113,11 +148,17 @@ def recommendation_track_uris(recs_df: pd.DataFrame) -> list[str]:
 
 
 def add_recommendations_to_spotify(recs_df, playlist_name="Recommended Songs", sp=None):
-    sp = sp or get_spotify_client()
-    user_id = sp.me()["id"]
+    sp = sp or get_spotify_client_or_raise()
+    try:
+        user_id = sp.me()["id"]
+    except Exception as exc:
+        raise classify_spotify_error(exc) from exc
 
     track_uris = recommendation_track_uris(recs_df)
     if not track_uris:
-        raise ValueError("No valid Spotify track IDs found in recommendations.")
+        raise NoRecommendationTracksError()
 
-    return create_recommendation_playlist(sp, user_id, track_uris, name=playlist_name)
+    try:
+        return create_recommendation_playlist(sp, user_id, track_uris, name=playlist_name)
+    except Exception as exc:
+        raise classify_spotify_error(exc) from exc
