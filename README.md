@@ -23,6 +23,26 @@ pip install -r requirements.txt
 streamlit run webapp/streamlit_app.py
 ```
 
+## Development
+
+Install the development dependencies and run the same checks used by CI:
+
+```bash
+pip install -r requirements-dev.txt
+black --check .
+ruff check .
+pytest
+```
+
+To apply formatting and import fixes locally:
+
+```bash
+black .
+ruff check --fix .
+```
+
+GitHub Actions runs formatting, linting, and tests on every push and pull request.
+
 
 ## Environment Variables
 Create a .env file for local use:

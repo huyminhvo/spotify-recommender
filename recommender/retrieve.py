@@ -1,6 +1,9 @@
+from typing import Iterable, Optional, Tuple
+
 import pandas as pd
-from typing import Optional, Tuple, Iterable
+
 from utils.matcher import canon_artist_primary
+
 
 def filter_candidates(
     catalog: pd.DataFrame,

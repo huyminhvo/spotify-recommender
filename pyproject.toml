@@ -1,0 +1,32 @@
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+extend-exclude = '''
+/(
+    \.dataset_cache
+  | \.pytest_tmp.*
+  | data
+  | venv
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [
+    ".dataset_cache",
+    ".pytest_tmp*",
+    "data",
+    "venv",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["E402"]
+"webapp/*.py" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

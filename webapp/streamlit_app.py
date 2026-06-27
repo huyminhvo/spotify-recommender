@@ -1,5 +1,10 @@
 import streamlit as st
-from interface import AppError, add_recommendations_to_spotify, get_recommendations, get_spotify_client_or_raise
+from interface import (
+    AppError,
+    add_recommendations_to_spotify,
+    get_recommendations,
+    get_spotify_client_or_raise,
+)
 
 # maintain persistent Spotify client across reruns
 if "sp_client" not in st.session_state:
@@ -11,7 +16,9 @@ if "sp_client" not in st.session_state:
         st.error(f"Spotify authentication failed: {e}")
 
 # force Streamlit to allow custom styling overrides
-st.set_page_config(page_title="Spotify Recommender", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(
+    page_title="Spotify Recommender", layout="wide", initial_sidebar_state="collapsed"
+)
 
 st.markdown(
     """
@@ -28,7 +35,8 @@ st.markdown(
 )
 
 # === Custom CSS overrides ===
-st.markdown("""
+st.markdown(
+    """
 <style>
 /* Global app background */
 body {
@@ -60,9 +68,12 @@ a:hover {
     text-decoration: underline;
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-st.markdown("""
+st.markdown(
+    """
 <style>
 /* Match input labels to description color */
 label, .stSlider label, .stTextInput label {
@@ -70,9 +81,12 @@ label, .stSlider label, .stTextInput label {
     font-weight: 500;
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-st.markdown("""
+st.markdown(
+    """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -81,14 +95,15 @@ html, body, [class*="css"] {
     font-family: 'Inter', sans-serif !important;
 }
 </style>
-""", unsafe_allow_html=True)
-
+""",
+    unsafe_allow_html=True,
+)
 
 
 # title
 st.markdown("<h1 style='color:#1DB954; '>Spotify Recommender</h1>", unsafe_allow_html=True)
 
-# description 
+# description
 st.markdown(
     """
     <div style='font-size:17px; color:#b3b3b3; margin-bottom:8px;'>
@@ -153,12 +168,10 @@ if "recs" in st.session_state and not st.session_state.recs.empty:
         with st.spinner("Creating playlist in your Spotify account..."):
             try:
                 playlist_url = add_recommendations_to_spotify(
-                    st.session_state.recs,
-                    sp=st.session_state.sp_client
+                    st.session_state.recs, sp=st.session_state.sp_client
                 )
                 st.success(f"Playlist created! [Open on Spotify]({playlist_url})")
             except AppError as e:
                 st.error(e.user_message)
             except Exception as e:
                 st.error(f"Failed to create playlist: {e}")
-

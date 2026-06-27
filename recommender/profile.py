@@ -1,5 +1,7 @@
-import numpy as np
 from typing import Literal
+
+import numpy as np
+
 
 def build_user_profile(
     X_user: np.ndarray,
@@ -7,7 +9,7 @@ def build_user_profile(
 ) -> np.ndarray:
     """
     Aggregate user track features into one or more profile vectors.
-    
+
     Parameters
     ----------
     X_user : np.ndarray
@@ -16,7 +18,7 @@ def build_user_profile(
         Aggregation method:
         - "mean": one profile, mean across tracks.
         - "median": one profile, median across tracks.
-    
+
     Returns
     -------
     np.ndarray

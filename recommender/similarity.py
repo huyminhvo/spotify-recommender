@@ -6,6 +6,7 @@ Implements similarity metrics between vectors.
 
 import numpy as np
 
+
 def cosine(u: np.ndarray, V: np.ndarray) -> np.ndarray:
     """
     Compute cosine similarity between vector u and each row of V.

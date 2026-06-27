@@ -1,13 +1,13 @@
 from typing import Literal
 
-from utils.merge_datasets import get_merged_dataset
-from utils.matcher import canon_artist_primary
 from recommender.preprocess import fit_scaler, transform
 from recommender.profile import build_user_profile
-from recommender.weightings import apply_weights
-from recommender.similarity import cosine
 from recommender.retrieve import filter_candidates
 from recommender.schema import FEATURE_COLS
+from recommender.similarity import cosine
+from recommender.weightings import apply_weights
+from utils.matcher import canon_artist_primary
+from utils.merge_datasets import get_merged_dataset
 
 RecommendationStrategy = Literal[
     "weighted_cosine",

@@ -10,7 +10,6 @@ from recommender.recommend import RecommendationStrategy, recommend_from_catalog
 from recommender.weightings import DEFAULT_WEIGHTS
 from utils.matcher import canon_artist_primary
 
-
 DEFAULT_STRATEGIES: tuple[RecommendationStrategy, ...] = (
     "random",
     "popularity",
@@ -30,7 +29,9 @@ class EvaluationConfig:
     use_pca: bool = False
 
 
-def ranking_metrics(recommended_ids: Sequence[str], relevant_ids: Iterable[str], k: int) -> dict[str, float]:
+def ranking_metrics(
+    recommended_ids: Sequence[str], relevant_ids: Iterable[str], k: int
+) -> dict[str, float]:
     relevant = set(relevant_ids)
     recs_at_k = [track_id for track_id in recommended_ids[:k] if pd.notna(track_id)]
     if not relevant:
@@ -65,11 +66,13 @@ def recommendation_diagnostics(
     strategy: RecommendationStrategy,
 ) -> dict[str, float]:
     rec_count = len(recs)
-    catalog_size = catalog["spotify_id"].dropna().nunique() if "spotify_id" in catalog.columns else len(catalog)
+    catalog_size = (
+        catalog["spotify_id"].dropna().nunique()
+        if "spotify_id" in catalog.columns
+        else len(catalog)
+    )
     coverage_rate = (
-        recs["spotify_id"].dropna().nunique() / catalog_size
-        if rec_count and catalog_size
-        else 0.0
+        recs["spotify_id"].dropna().nunique() / catalog_size if rec_count and catalog_size else 0.0
     )
 
     if rec_count and "artist_primary_canon" in recs.columns:
@@ -83,7 +86,11 @@ def recommendation_diagnostics(
     artist_duplication_rate = 1.0 - artist_diversity if rec_count else 0.0
 
     avg_similarity = 0.0
-    if strategy in {"weighted_cosine", "unweighted_cosine"} and "similarity" in recs.columns and not recs.empty:
+    if (
+        strategy in {"weighted_cosine", "unweighted_cosine"}
+        and "similarity" in recs.columns
+        and not recs.empty
+    ):
         avg_similarity = float(recs["similarity"].mean())
 
     return {
@@ -150,9 +157,11 @@ def evaluate_playlist(
                 "num_seed_tracks": len(seeds),
                 "num_holdout_tracks": len(holdout_ids),
                 "num_recommendations": len(recs),
-                "avg_recommendation_popularity": float(recs["popularity"].fillna(0).mean())
-                if not recs.empty and "popularity" in recs.columns
-                else 0.0,
+                "avg_recommendation_popularity": (
+                    float(recs["popularity"].fillna(0).mean())
+                    if not recs.empty and "popularity" in recs.columns
+                    else 0.0
+                ),
                 **metrics,
                 **diagnostics,
             }

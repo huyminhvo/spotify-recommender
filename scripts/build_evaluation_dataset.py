@@ -113,7 +113,9 @@ def build_evaluation_dataset(
         matched = matched.copy()
         matched.insert(0, "playlist_id", playlist_id)
         playlist_frames.append(matched)
-        print(f"[include] {playlist_id}: matched {matched_count}/{total_tracks} tracks ({match_rate:.1%})")
+        print(
+            f"[include] {playlist_id}: matched {matched_count}/{total_tracks} tracks ({match_rate:.1%})"
+        )
 
     if not playlist_frames:
         return pd.DataFrame(), pd.DataFrame(summary_rows)
@@ -194,7 +196,9 @@ def main() -> None:
     output_path = Path(args.output_csv)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     dataset.to_csv(output_path, index=False)
-    print(f"[write] {len(dataset)} rows across {dataset['playlist_id'].nunique()} playlists -> {output_path}")
+    print(
+        f"[write] {len(dataset)} rows across {dataset['playlist_id'].nunique()} playlists -> {output_path}"
+    )
 
     if args.summary_csv:
         summary_path = Path(args.summary_csv)

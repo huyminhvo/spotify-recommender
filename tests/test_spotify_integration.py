@@ -9,14 +9,11 @@ def test_extract_playlist_id_from_url_uri_and_raw_id():
         == "37i9dQZF1DXcBWIGoYBM5M"
     )
     assert (
-        extract_playlist_id(
-            "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=abc123"
-        )
+        extract_playlist_id("https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=abc123")
         == "37i9dQZF1DXcBWIGoYBM5M"
     )
     assert (
-        extract_playlist_id("spotify:playlist:37i9dQZF1DXcBWIGoYBM5M")
-        == "37i9dQZF1DXcBWIGoYBM5M"
+        extract_playlist_id("spotify:playlist:37i9dQZF1DXcBWIGoYBM5M") == "37i9dQZF1DXcBWIGoYBM5M"
     )
     assert extract_playlist_id("37i9dQZF1DXcBWIGoYBM5M") == "37i9dQZF1DXcBWIGoYBM5M"
 

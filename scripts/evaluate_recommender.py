@@ -20,7 +20,6 @@ from scripts.build_evaluation_dataset import (
 from utils.merge_datasets import get_merged_dataset
 from utils.spotify_auth import get_spotify_client
 
-
 DEFAULT_PLAYLIST_FILE = ROOT_DIR / "data" / "examples" / "playlists.txt"
 DEFAULT_EVAL_CSV = ROOT_DIR / "data" / "examples" / "real_playlist_eval.csv"
 DEFAULT_SUMMARY_CSV = ROOT_DIR / "data" / "examples" / "real_playlist_eval_summary.csv"
@@ -94,7 +93,9 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Rebuild the merged raw catalog cache before matching Spotify playlists.",
     )
-    parser.add_argument("--playlist-col", default="playlist_id", help="Column that identifies playlist membership.")
+    parser.add_argument(
+        "--playlist-col", default="playlist_id", help="Column that identifies playlist membership."
+    )
     parser.add_argument("--top-k", type=int, default=10)
     parser.add_argument("--seed-size", type=int, default=5)
     parser.add_argument("--holdout-size", type=int, default=5)
@@ -158,7 +159,9 @@ def load_or_build_catalog(args: argparse.Namespace) -> pd.DataFrame:
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     dataset.to_csv(output_path, index=False)
-    print(f"[write] {len(dataset)} rows across {dataset[args.playlist_col].nunique()} playlists -> {output_path}")
+    print(
+        f"[write] {len(dataset)} rows across {dataset[args.playlist_col].nunique()} playlists -> {output_path}"
+    )
     return dataset
 
 

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from typing import Iterable, List, Optional
+
 import numpy as np
 import pandas as pd
-from typing import List, Optional, Iterable
 from sklearn.preprocessing import StandardScaler
 
 from . import schema
@@ -81,7 +82,9 @@ def _extract_feature_matrix(df: pd.DataFrame, feature_order: List[str]) -> pd.Da
     Will create 'duration_ms' surrogate if only 'duration' exists.
     """
     # ensure duration fallbacks are handled BEFORE selecting columns
-    df2 = _apply_special_transforms(_coerce_numeric(df, feature_order + ["duration"]), feature_order)
+    df2 = _apply_special_transforms(
+        _coerce_numeric(df, feature_order + ["duration"]), feature_order
+    )
 
     missing = [c for c in feature_order if c not in df2.columns]
     if missing:
@@ -122,9 +125,7 @@ def fit_scaler(df: pd.DataFrame, feature_cols: Optional[List[str]] = None) -> St
 
 
 def transform(
-    df: pd.DataFrame,
-    scaler: StandardScaler,
-    feature_cols: Optional[List[str]] = None
+    df: pd.DataFrame, scaler: StandardScaler, feature_cols: Optional[List[str]] = None
 ) -> np.ndarray:
     """
     Transform features into a scaled numpy array using a pre-fitted scaler.

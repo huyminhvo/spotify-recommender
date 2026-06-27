@@ -30,9 +30,7 @@ def test_load_or_build_catalog_reads_prebuilt_csv(tmp_path):
         ]
     ).to_csv(csv_path, index=False)
 
-    catalog = evaluate_recommender.load_or_build_catalog(
-        _args(catalog_csv=str(csv_path))
-    )
+    catalog = evaluate_recommender.load_or_build_catalog(_args(catalog_csv=str(csv_path)))
 
     assert catalog["spotify_id"].tolist() == ["a", "b"]
 
@@ -42,9 +40,7 @@ def test_load_or_build_catalog_uses_default_output_csv_when_no_args(monkeypatch,
     pd.DataFrame([{"playlist_id": "p1", "spotify_id": "a"}]).to_csv(output_csv, index=False)
     monkeypatch.setattr(evaluate_recommender, "DEFAULT_PLAYLIST_FILE", tmp_path / "missing.txt")
 
-    catalog = evaluate_recommender.load_or_build_catalog(
-        _args(output_csv=str(output_csv))
-    )
+    catalog = evaluate_recommender.load_or_build_catalog(_args(output_csv=str(output_csv)))
 
     assert catalog["spotify_id"].tolist() == ["a"]
 
@@ -56,7 +52,9 @@ def test_load_or_build_catalog_uses_default_playlist_file_when_no_cache(monkeypa
     built_dataset = pd.DataFrame([{"playlist_id": "p1", "spotify_id": "a"}])
 
     monkeypatch.setattr(evaluate_recommender, "DEFAULT_PLAYLIST_FILE", default_playlist_file)
-    monkeypatch.setattr(evaluate_recommender, "get_merged_dataset", lambda paths, force_rebuild: pd.DataFrame())
+    monkeypatch.setattr(
+        evaluate_recommender, "get_merged_dataset", lambda paths, force_rebuild: pd.DataFrame()
+    )
     monkeypatch.setattr(evaluate_recommender, "count_raw_catalog_rows", lambda paths: 0)
     monkeypatch.setattr(evaluate_recommender, "get_spotify_client", lambda: object())
     monkeypatch.setattr(
@@ -68,9 +66,7 @@ def test_load_or_build_catalog_uses_default_playlist_file_when_no_cache(monkeypa
         ),
     )
 
-    catalog = evaluate_recommender.load_or_build_catalog(
-        _args(output_csv=str(output_csv))
-    )
+    catalog = evaluate_recommender.load_or_build_catalog(_args(output_csv=str(output_csv)))
 
     assert catalog["spotify_id"].tolist() == ["a"]
     assert pd.read_csv(output_csv)["spotify_id"].tolist() == ["a"]
@@ -88,7 +84,9 @@ def test_load_or_build_catalog_builds_from_playlist_inputs(monkeypatch, tmp_path
     )
     summary = pd.DataFrame([{"playlist_id": "p1", "matched_tracks": 2, "included": True}])
 
-    monkeypatch.setattr(evaluate_recommender, "get_merged_dataset", lambda paths, force_rebuild: raw_catalog)
+    monkeypatch.setattr(
+        evaluate_recommender, "get_merged_dataset", lambda paths, force_rebuild: raw_catalog
+    )
     monkeypatch.setattr(evaluate_recommender, "count_raw_catalog_rows", lambda paths: 1)
     monkeypatch.setattr(evaluate_recommender, "get_spotify_client", lambda: object())
     monkeypatch.setattr(
@@ -115,7 +113,9 @@ def test_load_or_build_catalog_builds_from_playlist_inputs(monkeypatch, tmp_path
 
 
 def test_load_or_build_catalog_renames_built_playlist_column(monkeypatch, tmp_path):
-    monkeypatch.setattr(evaluate_recommender, "get_merged_dataset", lambda paths, force_rebuild: pd.DataFrame())
+    monkeypatch.setattr(
+        evaluate_recommender, "get_merged_dataset", lambda paths, force_rebuild: pd.DataFrame()
+    )
     monkeypatch.setattr(evaluate_recommender, "count_raw_catalog_rows", lambda paths: 0)
     monkeypatch.setattr(evaluate_recommender, "get_spotify_client", lambda: object())
     monkeypatch.setattr(

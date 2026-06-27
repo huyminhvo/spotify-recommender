@@ -2,9 +2,11 @@ import ast
 import re
 import unicodedata
 from collections import defaultdict
+
 import pandas as pd
 
 # === Canonicalization ===
+
 
 def normalize_ascii(s: str) -> str:
     """
@@ -13,16 +15,27 @@ def normalize_ascii(s: str) -> str:
     s = str(s or "")
     return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
 
+
 def canon_title(title: str) -> str:
     """
     Canonicalize a title: strip accents, lowercase, remove variant tags, normalize spacing.
     """
     t = normalize_ascii(title).strip().lower()
     STRIP_KEYWORDS = [
-        "clean", "explicit", "radio edit", "remaster", "remastered",
-        "instrumental", "acoustic", "live", "deluxe", "anniversary edition",
-        "club mix", "extended mix"
+        "clean",
+        "explicit",
+        "radio edit",
+        "remaster",
+        "remastered",
+        "instrumental",
+        "acoustic",
+        "live",
+        "deluxe",
+        "anniversary edition",
+        "club mix",
+        "extended mix",
     ]
+
     def contains_kw(seg: str) -> bool:
         seg = seg.lower()
         return any(re.search(rf"\b{re.escape(kw)}\b", seg) for kw in STRIP_KEYWORDS)
@@ -47,6 +60,7 @@ def canon_title(title: str) -> str:
     t = re.sub(r"\s+", " ", t).strip()
     return t
 
+
 def canon_artist_primary(artists_raw) -> str:
     """
     Canonicalize the first artist in a list/string.
@@ -69,11 +83,22 @@ def canon_artist_primary(artists_raw) -> str:
     primary = re.sub(r"\s+", " ", primary)
     return primary
 
+
 # variant tags to deprioritize in tie-breaking
-VARIANT_TAGS = ["live", "remix", "instrumental", "clean", "explicit",
-                "karaoke", "cover", "demo", "edit"]
+VARIANT_TAGS = [
+    "live",
+    "remix",
+    "instrumental",
+    "clean",
+    "explicit",
+    "karaoke",
+    "cover",
+    "demo",
+    "edit",
+]
 
 # === Index building ===
+
 
 def build_indexes(df: pd.DataFrame):
     """
@@ -88,7 +113,9 @@ def build_indexes(df: pd.DataFrame):
             by_id[sid] = i  # store row index, not the row itself
 
         title_canon = row.get("title_canon") or canon_title(row.get("title_raw", ""))
-        artist_canon = row.get("artist_primary_canon") or canon_artist_primary(row.get("artists_raw", []))
+        artist_canon = row.get("artist_primary_canon") or canon_artist_primary(
+            row.get("artists_raw", [])
+        )
 
         if title_canon and artist_canon:
             by_key[(title_canon, artist_canon)].append(i)
@@ -100,6 +127,7 @@ def build_indexes(df: pd.DataFrame):
 
 
 # === Match resolution ===
+
 
 def match_track(track, indexes, df, duration_tol=2000):
     """
@@ -119,7 +147,8 @@ def match_track(track, indexes, df, duration_tol=2000):
 
     if dur and candidates_idx:
         candidates_idx = [
-            i for i in candidates_idx
+            i
+            for i in candidates_idx
             if df.at[i, "duration_ms"] and abs(df.at[i, "duration_ms"] - dur) <= duration_tol
         ]
 
@@ -131,10 +160,12 @@ def match_track(track, indexes, df, duration_tol=2000):
     candidates = [df.iloc[i].to_dict() for i in candidates_idx]
     return _choose_best(candidates)
 
+
 def _choose_best(candidates):
     """
     Prefer canonical versions over variants, then highest popularity & year.
     """
+
     def variant_score(row):
         name = (row.get("title_raw") or "").lower()
         for tag in VARIANT_TAGS:
@@ -148,6 +179,6 @@ def _choose_best(candidates):
             variant_score(r),
             -(r.get("popularity") or 0),
             -(r.get("release_year") or 0),
-        )
+        ),
     )
     return sorted_cands[0]

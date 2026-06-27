@@ -1,5 +1,6 @@
-import numpy as np
 from typing import Dict, Sequence
+
+import numpy as np
 
 DEFAULT_WEIGHTS = {
     "danceability": 1.5,
@@ -14,10 +15,9 @@ DEFAULT_WEIGHTS = {
     "duration_ms": 0.25,
 }
 
+
 def apply_weights(
-    X: np.ndarray, 
-    weights: Dict[str, float], 
-    feature_order: Sequence[str]
+    X: np.ndarray, weights: Dict[str, float], feature_order: Sequence[str]
 ) -> np.ndarray:
     """
     Apply feature weights to a vector or matrix.

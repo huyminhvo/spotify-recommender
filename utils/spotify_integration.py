@@ -1,6 +1,8 @@
 import re
+
 import pandas as pd
 from spotipy import Spotify
+
 from utils.matcher import match_track
 
 
@@ -41,7 +43,7 @@ def fetch_playlist_profile(
                 continue
             total_tracks += 1
 
-            match = match_track(track, indexes, catalog_df) 
+            match = match_track(track, indexes, catalog_df)
             if match is not None:
                 matched_rows.append(match)
 
@@ -56,4 +58,3 @@ def fetch_playlist_profile(
     print(f"Matched {len(matched_rows)} tracks from playlist against catalog")
     matched_df = pd.DataFrame(matched_rows)
     return (matched_df, stats) if return_stats else matched_df
-

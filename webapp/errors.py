@@ -16,7 +16,9 @@ class InvalidPlaylistURLError(AppError):
 
 
 class SpotifyAuthenticationError(AppError):
-    user_message = "Spotify authentication failed. Check your Spotify API credentials and sign in again."
+    user_message = (
+        "Spotify authentication failed. Check your Spotify API credentials and sign in again."
+    )
 
 
 class SpotifyPlaylistAccessError(AppError):

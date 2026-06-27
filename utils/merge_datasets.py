@@ -1,42 +1,58 @@
 from __future__ import annotations
+
 import ast
-from typing import List, Dict, Any, Optional
+import hashlib
+import json
 from collections import defaultdict
 from pathlib import Path
-import hashlib, json
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
-from utils.matcher import canon_title, canon_artist_primary
+
+from utils.matcher import canon_artist_primary, canon_title
 
 # === Audio feature list ===
 AUDIO_FEATURES = [
-    "danceability","energy","valence","speechiness","acousticness",
-    "instrumentalness","liveness","loudness","tempo","key","mode"
+    "danceability",
+    "energy",
+    "valence",
+    "speechiness",
+    "acousticness",
+    "instrumentalness",
+    "liveness",
+    "loudness",
+    "tempo",
+    "key",
+    "mode",
 ]
 
 # === Column auto-mapper ===
+
 
 def _auto_columns(df: pd.DataFrame) -> Dict[str, Optional[str]]:
     """
     Try to guess which columns in df map to the canonical schema.
     """
     lower = {c.lower(): c for c in df.columns}
+
     def pick(*cands):
         for c in cands:
-            if c in lower: return lower[c]
+            if c in lower:
+                return lower[c]
         return None
+
     duration = next((c for c in df.columns if "duration" in c.lower()), None)
     year = next((c for c in df.columns if "year" in c.lower()), None)
     return {
-        "id": pick("id","track_id","spotify_id","uri"),
-        "name": pick("name","track_name","title"),
-        "artists": pick("artists","artist","artist_name"),
+        "id": pick("id", "track_id", "spotify_id", "uri"),
+        "name": pick("name", "track_name", "title"),
+        "artists": pick("artists", "artist", "artist_name"),
         "duration": duration,
         "explicit": next((c for c in df.columns if "explicit" in c.lower()), None),
         "popularity": next((c for c in df.columns if "popularity" in c.lower()), None),
         "isrc": "isrc" if "isrc" in lower else None,
         "release_year": year,
-        "album": pick("album","album_name"),
+        "album": pick("album", "album_name"),
         # audio features
         "danceability": "danceability" if "danceability" in lower else None,
         "energy": "energy" if "energy" in lower else None,
@@ -51,7 +67,9 @@ def _auto_columns(df: pd.DataFrame) -> Dict[str, Optional[str]]:
         "mode": "mode" if "mode" in lower else None,
     }
 
+
 # === Row normalization ===
+
 
 def _normalize_row(r: pd.Series, colmap: Dict[str, Optional[str]]) -> Dict[str, Any]:
     """
@@ -118,14 +136,20 @@ def _normalize_row(r: pd.Series, colmap: Dict[str, Optional[str]]) -> Dict[str, 
             release_year = None
 
     # isrc / album
-    isrc = str(r.get(colmap["isrc"])) if colmap["isrc"] and pd.notnull(r.get(colmap["isrc"])) else None
-    album = str(r.get(colmap["album"])) if colmap["album"] and pd.notnull(r.get(colmap["album"])) else None
+    isrc = (
+        str(r.get(colmap["isrc"])) if colmap["isrc"] and pd.notnull(r.get(colmap["isrc"])) else None
+    )
+    album = (
+        str(r.get(colmap["album"]))
+        if colmap["album"] and pd.notnull(r.get(colmap["album"]))
+        else None
+    )
 
     # audio features
     feats: Dict[str, Any] = {}
     for feat in AUDIO_FEATURES:
         col = colmap.get(feat)
-        if not col: 
+        if not col:
             feats[feat] = None
             continue
         val = r.get(col)
@@ -133,7 +157,15 @@ def _normalize_row(r: pd.Series, colmap: Dict[str, Optional[str]]) -> Dict[str, 
             feats[feat] = None
             continue
         try:
-            if feat in {"danceability","energy","valence","speechiness","acousticness","instrumentalness","liveness"}:
+            if feat in {
+                "danceability",
+                "energy",
+                "valence",
+                "speechiness",
+                "acousticness",
+                "instrumentalness",
+                "liveness",
+            }:
                 v = float(val)
                 feats[feat] = max(0.0, min(1.0, v))  # clamp
             elif feat == "loudness":
@@ -141,7 +173,7 @@ def _normalize_row(r: pd.Series, colmap: Dict[str, Optional[str]]) -> Dict[str, 
             elif feat == "tempo":
                 v = float(val)
                 feats[feat] = v if v > 0 else None
-            elif feat in {"key","mode"}:
+            elif feat in {"key", "mode"}:
                 feats[feat] = int(val)
             else:
                 feats[feat] = float(val)
@@ -163,7 +195,9 @@ def _normalize_row(r: pd.Series, colmap: Dict[str, Optional[str]]) -> Dict[str, 
         **feats,
     }
 
+
 # === Field-wise merge ===
+
 
 def _coalesce(a, b):
     if a in (None, "", [], {}):
@@ -176,6 +210,7 @@ def _coalesce(a, b):
         return a if len(a) >= len(b) else b
     return a
 
+
 def _merge_two_rows(x: Dict[str, Any], y: Dict[str, Any]) -> Dict[str, Any]:
     out = dict(x)
     for k in ["spotify_id", "isrc"]:
@@ -187,7 +222,9 @@ def _merge_two_rows(x: Dict[str, Any], y: Dict[str, Any]) -> Dict[str, Any]:
 
     # popularity: take max
     px, py = out.get("popularity"), y.get("popularity")
-    out["popularity"] = max(px, py) if (px is not None and py is not None) else (px if px is not None else py)
+    out["popularity"] = (
+        max(px, py) if (px is not None and py is not None) else (px if px is not None else py)
+    )
 
     # explicit: True if any
     ex, ey = out.get("explicit"), y.get("explicit")
@@ -195,14 +232,19 @@ def _merge_two_rows(x: Dict[str, Any], y: Dict[str, Any]) -> Dict[str, Any]:
 
     # release_year: prefer newer
     rx, ry = out.get("release_year"), y.get("release_year")
-    if rx is None: out["release_year"] = ry
-    elif ry is None: out["release_year"] = rx
-    else: out["release_year"] = max(rx, ry)
+    if rx is None:
+        out["release_year"] = ry
+    elif ry is None:
+        out["release_year"] = rx
+    else:
+        out["release_year"] = max(rx, ry)
 
     # duration: prefer larger if within 2s
     dx, dy = out.get("duration_ms"), y.get("duration_ms")
-    if dx is None: out["duration_ms"] = dy
-    elif dy is None: out["duration_ms"] = dx
+    if dx is None:
+        out["duration_ms"] = dy
+    elif dy is None:
+        out["duration_ms"] = dx
     else:
         if abs(dx - dy) <= 2000:
             out["duration_ms"] = max(dx, dy)
@@ -216,7 +258,9 @@ def _merge_two_rows(x: Dict[str, Any], y: Dict[str, Any]) -> Dict[str, Any]:
 
     return out
 
+
 # === Dedupe passes ===
+
 
 def _dedupe_by_key(rows: List[Dict[str, Any]], key_fn) -> List[Dict[str, Any]]:
     buckets = defaultdict(list)
@@ -239,7 +283,9 @@ def _dedupe_by_key(rows: List[Dict[str, Any]], key_fn) -> List[Dict[str, Any]]:
             merged.append(r)
     return merged
 
+
 # === Main merge ===
+
 
 def merge_datasets(paths: List[str], conservative_duration_ms: int = 3000) -> pd.DataFrame:
     """
@@ -271,19 +317,34 @@ def merge_datasets(paths: List[str], conservative_duration_ms: int = 3000) -> pd
 
     rows = _dedupe_by_key(rows, key_fn=key_canon_dur)
 
-    out_df = pd.DataFrame(rows, columns=[
-        "spotify_id","title_raw","title_canon","artists_raw","artist_primary_canon",
-        "duration_ms","explicit","popularity","release_year","isrc","album"
-    ] + AUDIO_FEATURES)
+    out_df = pd.DataFrame(
+        rows,
+        columns=[
+            "spotify_id",
+            "title_raw",
+            "title_canon",
+            "artists_raw",
+            "artist_primary_canon",
+            "duration_ms",
+            "explicit",
+            "popularity",
+            "release_year",
+            "isrc",
+            "album",
+        ]
+        + AUDIO_FEATURES,
+    )
 
     out_df = out_df.drop_duplicates(
-        subset=["spotify_id","isrc","title_canon","artist_primary_canon","duration_ms"],
-        keep="first"
+        subset=["spotify_id", "isrc", "title_canon", "artist_primary_canon", "duration_ms"],
+        keep="first",
     ).reset_index(drop=True)
 
     return out_df
 
+
 # === Cache wrapper ===
+
 
 def _fingerprint_inputs(paths: list[str]) -> str:
     """
@@ -292,15 +353,16 @@ def _fingerprint_inputs(paths: list[str]) -> str:
     items = []
     for p in paths:
         stat = Path(p).stat()
-        items.append({"path": str(Path(p).resolve()),
-                      "size": stat.st_size,
-                      "mtime": int(stat.st_mtime)})
-    blob = json.dumps(sorted(items, key=lambda d: d["path"]), separators=(",",":")).encode()
+        items.append(
+            {"path": str(Path(p).resolve()), "size": stat.st_size, "mtime": int(stat.st_mtime)}
+        )
+    blob = json.dumps(sorted(items, key=lambda d: d["path"]), separators=(",", ":")).encode()
     return hashlib.sha256(blob).hexdigest()[:16]
 
-def get_merged_dataset(paths: list[str],
-                       cache_dir: str = ".dataset_cache",
-                       force_rebuild: bool = False) -> pd.DataFrame:
+
+def get_merged_dataset(
+    paths: list[str], cache_dir: str = ".dataset_cache", force_rebuild: bool = False
+) -> pd.DataFrame:
     """
     Get the merged dataset, using a cached Parquet file if available.
     Also persists a pickled indexes object for fast future loading.
@@ -320,9 +382,11 @@ def get_merged_dataset(paths: list[str],
 
     # build and save indexes alongside parquet
     from utils.matcher import build_indexes
+
     indexes = build_indexes(df)
     with open(index_target, "wb") as f:
         import pickle
+
         pickle.dump(indexes, f)
 
     return df
