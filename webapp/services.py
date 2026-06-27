@@ -28,6 +28,8 @@ from webapp.errors import (
     classify_spotify_error,
 )
 
+SPOTIFY_TRACK_BATCH_SIZE = 50
+
 
 @dataclass(frozen=True)
 class CatalogBundle:
@@ -108,15 +110,22 @@ def generate_recommendations(
 
 
 def fetch_album_art_urls(sp, spotify_ids: Iterable[str]) -> list[str | None]:
-    art_urls = []
-    for spotify_id in spotify_ids:
+    spotify_ids = list(spotify_ids)
+    art_urls: list[str | None] = []
+    for start in range(0, len(spotify_ids), SPOTIFY_TRACK_BATCH_SIZE):
+        batch = spotify_ids[start : start + SPOTIFY_TRACK_BATCH_SIZE]
         try:
-            track = sp.track(spotify_id)
-            images = track.get("album", {}).get("images", [])
-            art = images[1]["url"] if len(images) > 1 else (images[0]["url"] if images else None)
+            tracks = sp.tracks(batch).get("tracks", [])
         except Exception:
-            art = None
-        art_urls.append(art)
+            art_urls.extend([None] * len(batch))
+            continue
+
+        for track in tracks:
+            images = (track or {}).get("album", {}).get("images", [])
+            art_urls.append(
+                images[1]["url"] if len(images) > 1 else (images[0]["url"] if images else None)
+            )
+        art_urls.extend([None] * (len(batch) - len(tracks)))
     return art_urls
 
 

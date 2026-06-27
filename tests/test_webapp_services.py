@@ -8,11 +8,25 @@ from webapp import services
 class FakeSpotify:
     def __init__(self):
         self.created = None
+        self.track_batches = []
 
-    def track(self, spotify_id):
-        if spotify_id == "bad":
+    def tracks(self, spotify_ids):
+        self.track_batches.append(spotify_ids)
+        if "bad" in spotify_ids:
             raise RuntimeError("spotify failure")
-        return {"album": {"images": [{"url": f"{spotify_id}-small"}, {"url": f"{spotify_id}-medium"}]}}
+        return {
+            "tracks": [
+                {
+                    "album": {
+                        "images": [
+                            {"url": f"{spotify_id}-small"},
+                            {"url": f"{spotify_id}-medium"},
+                        ]
+                    }
+                }
+                for spotify_id in spotify_ids
+            ]
+        }
 
     def me(self):
         return {"id": "user-id"}
@@ -24,12 +38,38 @@ class FakeSpotifyError(Exception):
         super().__init__(f"spotify status {status}")
 
 
-def test_fetch_album_art_urls_handles_success_missing_and_errors():
+def test_fetch_album_art_urls_handles_success_and_errors():
     sp = FakeSpotify()
 
-    urls = services.fetch_album_art_urls(sp, ["a", "bad"])
+    assert services.fetch_album_art_urls(sp, ["a"]) == ["a-medium"]
+    assert services.fetch_album_art_urls(sp, ["bad"]) == [None]
 
-    assert urls == ["a-medium", None]
+
+def test_fetch_album_art_urls_batches_at_spotify_limit_and_preserves_order():
+    sp = FakeSpotify()
+    spotify_ids = [f"track-{index}" for index in range(51)]
+
+    urls = services.fetch_album_art_urls(sp, spotify_ids)
+
+    assert [len(batch) for batch in sp.track_batches] == [50, 1]
+    assert urls == [f"{spotify_id}-medium" for spotify_id in spotify_ids]
+
+
+def test_fetch_album_art_urls_handles_missing_tracks_and_images():
+    class IncompleteSpotify:
+        def tracks(self, spotify_ids):
+            return {
+                "tracks": [
+                    None,
+                    {"album": {"images": []}},
+                ]
+            }
+
+    assert services.fetch_album_art_urls(IncompleteSpotify(), ["a", "b", "c"]) == [
+        None,
+        None,
+        None,
+    ]
 
 
 def test_recommendation_track_uris_drop_missing_ids():
