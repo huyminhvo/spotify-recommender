@@ -53,6 +53,7 @@ def test_recommend_returns_ranked_dataframe_with_expected_shape(monkeypatch):
     assert recs["spotify_id"].tolist() == ["close", "far"]
     assert "seed" not in recs["spotify_id"].tolist()
     assert recs["similarity"].is_monotonic_decreasing
+    assert recs["recommendation_reason"].str.startswith("Recommended because").all()
 
 
 def test_recommend_default_pca_handles_small_catalog(monkeypatch):

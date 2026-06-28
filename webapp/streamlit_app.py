@@ -158,6 +158,9 @@ if "recs" in st.session_state and not st.session_state.recs.empty:
                 st.markdown(f"**{title}**  \n{artists_str}")
                 track_url = f"https://open.spotify.com/track/{row['spotify_id']}"
                 st.markdown(f"[Listen on Spotify]({track_url})", unsafe_allow_html=True)
+                reason = row.get("recommendation_reason")
+                if reason:
+                    st.caption(reason)
                 sim = row.get("similarity")
                 if sim is not None:
                     st.caption(f"Recommendation score: {sim:.4f}")

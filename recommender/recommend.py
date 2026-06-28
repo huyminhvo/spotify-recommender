@@ -1,5 +1,6 @@
 from typing import Literal
 
+from recommender.explain import explain_feature_similarity
 from recommender.preprocess import fit_scaler, transform
 from recommender.profile import build_user_profile
 from recommender.retrieve import filter_candidates
@@ -66,12 +67,19 @@ def recommend_from_catalog(
     scaler = fit_scaler(catalog, FEATURE_COLS)
     X_user = transform(user_tracks_df, scaler, FEATURE_COLS)
     u_vec = build_user_profile(X_user, method="median")
+    X_cands = transform(candidates, scaler, FEATURE_COLS)
+    candidates = candidates.copy()
+    candidates["recommendation_reason"] = explain_feature_similarity(
+        u_vec,
+        X_cands,
+        FEATURE_COLS,
+    )
+
     weights = user_weights if strategy == "weighted_cosine" else None
 
     if weights is not None:
         u_vec = apply_weights(u_vec, weights, FEATURE_COLS)
 
-    X_cands = transform(candidates, scaler, FEATURE_COLS)
     if weights is not None:
         X_cands = apply_weights(X_cands, weights, FEATURE_COLS)
 
@@ -91,7 +99,6 @@ def recommend_from_catalog(
         u_vec = transform_pca(u_vec.reshape(1, -1), pca).reshape(-1)
 
     sims = cosine(u_vec, X_cands)
-    candidates = candidates.copy()
     candidates["similarity"] = sims
     candidates["score"] = sims
     recs = candidates.sort_values("score", ascending=False).head(top_n)
