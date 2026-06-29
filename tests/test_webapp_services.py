@@ -123,7 +123,7 @@ def test_get_recommendations_orchestrates_services(monkeypatch):
     monkeypatch.setattr(
         services,
         "generate_recommendations",
-        lambda bundle_arg, user_tracks_arg, top_n: recs,
+        lambda bundle_arg, user_tracks_arg, top_n, adjustments: recs,
     )
 
     result = services.get_recommendations("spotify:playlist:test", top_n=1)

@@ -100,12 +100,14 @@ def generate_recommendations(
     bundle: CatalogBundle,
     user_tracks_df: pd.DataFrame,
     top_n: int = 10,
+    adjustments: dict[str, float] | None = None,
 ) -> pd.DataFrame:
     return recommend_from_catalog(
         catalog=bundle.catalog,
         user_tracks_df=user_tracks_df,
         top_n=top_n,
         user_weights=DEFAULT_WEIGHTS,
+        adjustments=adjustments,
     )
 
 
@@ -144,11 +146,21 @@ def get_spotify_client_or_raise():
         raise SpotifyAuthenticationError(str(exc)) from exc
 
 
-def get_recommendations(playlist_url: str, top_n: int = 10, sp=None) -> pd.DataFrame:
+def get_recommendations(
+    playlist_url: str,
+    top_n: int = 10,
+    adjustments: dict[str, float] | None = None,
+    sp=None,
+) -> pd.DataFrame:
     sp = sp or get_spotify_client_or_raise()
     bundle = load_catalog_bundle()
     user_tracks = match_playlist_tracks(sp, playlist_url, bundle)
-    recs = generate_recommendations(bundle, user_tracks, top_n=top_n)
+    recs = generate_recommendations(
+        bundle,
+        user_tracks,
+        top_n=top_n,
+        adjustments=adjustments,
+    )
     return attach_album_art(sp, recs)
 
 

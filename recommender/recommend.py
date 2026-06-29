@@ -6,6 +6,7 @@ from recommender.profile import build_user_profile
 from recommender.retrieve import filter_candidates
 from recommender.schema import FEATURE_COLS
 from recommender.similarity import cosine
+from recommender.steering import rerank_with_adjustments
 from recommender.weightings import apply_weights
 from utils.matcher import canon_artist_primary
 from utils.merge_datasets import get_merged_dataset
@@ -30,6 +31,7 @@ def recommend_from_catalog(
     strategy: RecommendationStrategy = "weighted_cosine",
     same_artist_exclusion=False,
     random_state=0,
+    adjustments=None,
 ):
     exclude_ids = user_tracks_df["spotify_id"].dropna().tolist()
     exclude_artists = None
@@ -100,7 +102,14 @@ def recommend_from_catalog(
 
     sims = cosine(u_vec, X_cands)
     candidates["similarity"] = sims
-    candidates["score"] = sims
+    scores, targets = rerank_with_adjustments(
+        candidates,
+        user_tracks_df,
+        sims,
+        adjustments,
+    )
+    candidates["score"] = scores
+    candidates.attrs["steering_targets"] = targets
     recs = candidates.sort_values("score", ascending=False).head(top_n)
     return recs.reset_index(drop=True)
 
@@ -117,6 +126,7 @@ def recommend(
     strategy: RecommendationStrategy = "weighted_cosine",
     same_artist_exclusion=False,
     random_state=0,
+    adjustments=None,
 ):
     catalog = get_merged_dataset(catalog_paths)
     return recommend_from_catalog(
@@ -131,4 +141,5 @@ def recommend(
         strategy=strategy,
         same_artist_exclusion=same_artist_exclusion,
         random_state=random_state,
+        adjustments=adjustments,
     )

@@ -7,6 +7,7 @@ Built in Python, powered by pandas, scikit-learn, and Streamlit, and integrated 
 ## Features
 - Paste any Spotify playlist URL to get personalized recommendations
 - Album art, artist names, and direct Spotify links
+- Optional mood, energy, danceability, and acousticness steering
 - Full Spotify API integration (auth, playlist parsing, album art)
 - Streamlit web interface
 - Cached dataset merging for fast repeat runs
@@ -71,6 +72,8 @@ similarity. The recommendation module also includes comparison baselines:
 - `weighted_cosine`: cosine similarity with tuned audio-feature weights
 
 Same-artist exclusion can be enabled to force discovery outside the seed artists.
+Optional UI controls rerank cosine-similar candidates toward adjusted audio-feature
+targets while keeping neutral slider settings identical to the base ranking.
 
 To compare strategies on a playlist-labeled CSV, run:
 
@@ -102,7 +105,6 @@ metrics (`match_rate`, raw/merged catalog size, duplicate reduction rate).
 
 ## Roadmap
 - Streamlit Cloud deployment
-- Mood and energy sliders
 - ML-based recommendation enhancements
 - Visual analytics panel
 

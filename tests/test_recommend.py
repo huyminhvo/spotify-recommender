@@ -1,6 +1,6 @@
 import pandas as pd
 
-from recommender.recommend import recommend
+from recommender.recommend import recommend, recommend_from_catalog
 
 
 def _track(spotify_id, danceability, energy, popularity=80, release_year=2020):
@@ -147,3 +147,49 @@ def test_recommend_supports_unweighted_cosine_and_same_artist_exclusion(monkeypa
     )
 
     assert recs["spotify_id"].tolist() == ["other_artist"]
+
+
+def test_neutral_adjustments_preserve_the_base_ranking():
+    catalog = pd.DataFrame(
+        [
+            _track("seed", 0.5, 0.5),
+            _track("a", 0.52, 0.52),
+            _track("b", 0.7, 0.7),
+        ]
+    )
+    user_tracks = catalog[catalog["spotify_id"] == "seed"].copy()
+
+    base = recommend_from_catalog(catalog, user_tracks, min_popularity=None, use_pca=False)
+    neutral = recommend_from_catalog(
+        catalog,
+        user_tracks,
+        min_popularity=None,
+        use_pca=False,
+        adjustments={"energy": 0.0, "valence": 0.0},
+    )
+
+    assert neutral["spotify_id"].tolist() == base["spotify_id"].tolist()
+    assert neutral["score"].tolist() == base["score"].tolist()
+
+
+def test_energy_adjustment_penalizes_candidates_by_distance_to_target():
+    catalog = pd.DataFrame(
+        [
+            _track("seed", 0.5, 0.5),
+            _track("lower", 0.5, 0.4),
+            _track("higher", 0.5, 0.7),
+        ]
+    )
+    user_tracks = catalog[catalog["spotify_id"] == "seed"].copy()
+
+    recs = recommend_from_catalog(
+        catalog,
+        user_tracks,
+        min_popularity=None,
+        use_pca=False,
+        adjustments={"energy": 0.3},
+    )
+
+    penalties = (recs["similarity"] - recs["score"]).set_axis(recs["spotify_id"])
+    assert penalties["higher"] < penalties["lower"]
+    assert (recs["score"] <= recs["similarity"]).all()

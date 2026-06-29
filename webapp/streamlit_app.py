@@ -119,6 +119,19 @@ st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
 
 playlist_url = st.text_input("Playlist URL", placeholder="https://open.spotify.com/playlist/...")
 top_n = st.slider("Number of recommendations", min_value=5, max_value=25, value=10)
+with st.expander("Tune recommendations (optional)"):
+    st.caption("Shift the playlist's existing sound; zero keeps the original ranking.")
+    energy_shift = st.slider("Energy", -0.30, 0.30, 0.00, 0.05)
+    mood_shift = st.slider("Mood / positivity", -0.30, 0.30, 0.00, 0.05)
+    dance_shift = st.slider("Danceability", -0.30, 0.30, 0.00, 0.05)
+    acoustic_shift = st.slider("Acousticness", -0.30, 0.30, 0.00, 0.05)
+
+adjustments = {
+    "energy": energy_shift,
+    "valence": mood_shift,
+    "danceability": dance_shift,
+    "acousticness": acoustic_shift,
+}
 go = st.button("Get Recommendations")
 
 if go:
@@ -127,7 +140,11 @@ if go:
     else:
         with st.spinner("Fetching recommendations..."):
             try:
-                recs = get_recommendations(playlist_url, top_n=top_n)
+                recs = get_recommendations(
+                    playlist_url,
+                    top_n=top_n,
+                    adjustments=adjustments,
+                )
                 st.session_state.recs = recs  # persist recs across reruns
 
                 if recs.empty:
@@ -161,9 +178,9 @@ if "recs" in st.session_state and not st.session_state.recs.empty:
                 reason = row.get("recommendation_reason")
                 if reason:
                     st.caption(reason)
-                sim = row.get("similarity")
-                if sim is not None:
-                    st.caption(f"Recommendation score: {sim:.4f}")
+                score = row.get("score")
+                if score is not None:
+                    st.caption(f"Recommendation score: {score:.4f}")
 
     # spacer + button
     st.markdown("<div style='height:20px;'></div>", unsafe_allow_html=True)
