@@ -4,6 +4,7 @@ from interface import (
     add_recommendations_to_spotify,
     get_recommendations,
     get_spotify_client_or_raise,
+    setting_scale_to_adjustment,
 )
 
 # maintain persistent Spotify client across reruns
@@ -119,18 +120,25 @@ st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
 
 playlist_url = st.text_input("Playlist URL", placeholder="https://open.spotify.com/playlist/...")
 top_n = st.slider("Number of recommendations", min_value=5, max_value=25, value=10)
-with st.expander("Tune recommendations (optional)"):
-    st.caption("Shift the playlist's existing sound; zero keeps the original ranking.")
-    energy_shift = st.slider("Energy", -0.30, 0.30, 0.00, 0.05)
-    mood_shift = st.slider("Mood / positivity", -0.30, 0.30, 0.00, 0.05)
-    dance_shift = st.slider("Danceability", -0.30, 0.30, 0.00, 0.05)
-    acoustic_shift = st.slider("Acousticness", -0.30, 0.30, 0.00, 0.05)
+with st.expander("Recommendation settings"):
+    slider_options = {
+        "min_value": 1.0,
+        "max_value": 10.0,
+        "value": 5.5,
+        "step": 0.5,
+        "format": "%.1f",
+        "help": "1 lowers this trait, 5.5 keeps it neutral, and 10 raises it.",
+    }
+    energy_setting = st.slider("Energy", **slider_options)
+    mood_setting = st.slider("Mood / positivity", **slider_options)
+    dance_setting = st.slider("Danceability", **slider_options)
+    acoustic_setting = st.slider("Acousticness", **slider_options)
 
 adjustments = {
-    "energy": energy_shift,
-    "valence": mood_shift,
-    "danceability": dance_shift,
-    "acousticness": acoustic_shift,
+    "energy": setting_scale_to_adjustment(energy_setting),
+    "valence": setting_scale_to_adjustment(mood_setting),
+    "danceability": setting_scale_to_adjustment(dance_setting),
+    "acousticness": setting_scale_to_adjustment(acoustic_setting),
 }
 go = st.button("Get Recommendations")
 

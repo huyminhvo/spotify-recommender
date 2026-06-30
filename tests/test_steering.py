@@ -2,13 +2,23 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from recommender.steering import normalize_adjustments, rerank_with_adjustments
+from recommender.steering import (
+    normalize_adjustments,
+    rerank_with_adjustments,
+    setting_scale_to_adjustment,
+)
+
+
+def test_setting_scale_maps_visible_range_to_internal_adjustments():
+    assert setting_scale_to_adjustment(1) == pytest.approx(-0.5)
+    assert setting_scale_to_adjustment(5.5) == pytest.approx(0.0)
+    assert setting_scale_to_adjustment(10) == pytest.approx(0.5)
 
 
 def test_adjustments_are_clamped_and_unknown_features_rejected():
     assert normalize_adjustments({"energy": 1.0, "valence": -1.0}) == {
-        "energy": 0.3,
-        "valence": -0.3,
+        "energy": 0.5,
+        "valence": -0.5,
     }
 
     with pytest.raises(ValueError, match="Unsupported steering"):
