@@ -24,8 +24,9 @@ def extract_playlist_id(url_or_uri: str) -> str:
 def fetch_playlist_profile(
     sp: Spotify,
     playlist_id: str,
-    indexes,
-    catalog_df: pd.DataFrame,
+    indexes=None,
+    catalog_df: pd.DataFrame | None = None,
+    catalog_store=None,
     return_stats: bool = False,
 ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, int]]:
     """
@@ -43,7 +44,10 @@ def fetch_playlist_profile(
                 continue
             total_tracks += 1
 
-            match = match_track(track, indexes, catalog_df)
+            if catalog_store is not None:
+                match = catalog_store.match_track(track)
+            else:
+                match = match_track(track, indexes, catalog_df)
             if match is not None:
                 matched_rows.append(match)
 

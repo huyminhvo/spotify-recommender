@@ -365,28 +365,18 @@ def get_merged_dataset(
 ) -> pd.DataFrame:
     """
     Get the merged dataset, using a cached Parquet file if available.
-    Also persists a pickled indexes object for fast future loading.
+    The web app queries this Parquet cache directly through DuckDB.
     """
     Path(cache_dir).mkdir(parents=True, exist_ok=True)
     fp = _fingerprint_inputs(paths)
     target = Path(cache_dir) / f"merged_{fp}.parquet"
-    index_target = Path(cache_dir) / f"indexes_{fp}.pkl"
 
-    if target.exists() and index_target.exists() and not force_rebuild:
-        print(f"[cache] Using cached {target.name} and {index_target.name}")
+    if target.exists() and not force_rebuild:
+        print(f"[cache] Using cached {target.name}")
         return pd.read_parquet(target)
 
-    print("[cache] Rebuilding merged dataset + indexes…")
+    print("[cache] Rebuilding merged dataset...")
     df = merge_datasets(paths)
     df.to_parquet(target, index=False)
-
-    # build and save indexes alongside parquet
-    from utils.matcher import build_indexes
-
-    indexes = build_indexes(df)
-    with open(index_target, "wb") as f:
-        import pickle
-
-        pickle.dump(indexes, f)
 
     return df

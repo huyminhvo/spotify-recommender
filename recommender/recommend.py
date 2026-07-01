@@ -41,13 +41,21 @@ def recommend_from_catalog(
         else:
             exclude_artists = user_tracks_df["artists_raw"].apply(canon_artist_primary).tolist()
 
-    candidates = filter_candidates(
-        catalog,
-        exclude_ids=exclude_ids,
-        exclude_artists=exclude_artists,
-        min_popularity=min_popularity,
-        year_range=year_range,
-    )
+    if hasattr(catalog, "load_candidates"):
+        candidates = catalog.load_candidates(
+            exclude_ids=exclude_ids,
+            exclude_artists=exclude_artists,
+            min_popularity=min_popularity,
+            year_range=year_range,
+        )
+    else:
+        candidates = filter_candidates(
+            catalog,
+            exclude_ids=exclude_ids,
+            exclude_artists=exclude_artists,
+            min_popularity=min_popularity,
+            year_range=year_range,
+        )
     if candidates.empty:
         return candidates.assign(score=[], similarity=[]).head(0)
 
@@ -66,7 +74,8 @@ def recommend_from_catalog(
     if strategy not in {"weighted_cosine", "unweighted_cosine"}:
         raise ValueError(f"Unknown recommendation strategy: {strategy}")
 
-    scaler = fit_scaler(catalog, FEATURE_COLS)
+    scaler_source = candidates if hasattr(catalog, "load_candidates") else catalog
+    scaler = fit_scaler(scaler_source, FEATURE_COLS)
     X_user = transform(user_tracks_df, scaler, FEATURE_COLS)
     u_vec = build_user_profile(X_user, method="median")
     X_cands = transform(candidates, scaler, FEATURE_COLS)
@@ -89,8 +98,8 @@ def recommend_from_catalog(
     if use_pca:
         from recommender.cluster import fit_pca, transform_pca
 
-        # fit PCA on all catalog rows
-        X_catalog = transform(catalog, scaler, FEATURE_COLS)
+        # Fit PCA on the in-memory catalog or bounded store sample.
+        X_catalog = transform(scaler_source, scaler, FEATURE_COLS)
         if weights is not None:
             X_catalog = apply_weights(X_catalog, weights, FEATURE_COLS)
 

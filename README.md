@@ -51,7 +51,15 @@ Create a .env file for local use:
 SPOTIPY_CLIENT_ID=your_client_id
 SPOTIPY_CLIENT_SECRET=your_client_secret
 SPOTIPY_REDIRECT_URI=http://localhost:8888/callback
+# Optional prebuilt catalog and in-memory recommendation sample size:
+CATALOG_PARQUET_PATH=/path/to/merged_catalog.parquet
+CATALOG_CANDIDATE_LIMIT=100000
 ```
+
+The Streamlit app queries the Parquet catalog with DuckDB instead of loading the
+entire catalog and a pickled lookup index. Each recommendation request loads a
+deterministic, dtype-optimized sample of at most `CATALOG_CANDIDATE_LIMIT`
+eligible tracks; the default is 100,000.
 
 
 ## Architecture Overview

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import pickle
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +14,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from recommender.recommend import recommend_from_catalog
 from recommender.weightings import DEFAULT_WEIGHTS
+from utils.catalog_store import CatalogStore
 from utils.merge_datasets import _fingerprint_inputs, get_merged_dataset
 from utils.spotify_auth import get_spotify_client
 from utils.spotify_integration import extract_playlist_id, fetch_playlist_profile
@@ -34,8 +35,8 @@ SPOTIFY_TRACK_BATCH_SIZE = 50
 @dataclass(frozen=True)
 class CatalogBundle:
     paths: list[str]
-    catalog: pd.DataFrame
-    indexes: dict
+    catalog: pd.DataFrame | CatalogStore
+    indexes: dict | None = None
 
 
 def default_catalog_paths(root_dir: Path = ROOT_DIR) -> list[str]:
@@ -51,33 +52,31 @@ def cache_dir(root_dir: Path = ROOT_DIR) -> Path:
     return root_dir / ".dataset_cache"
 
 
-def load_indexes(catalog_paths: list[str], cache_directory: Path | None = None) -> dict:
-    directory = cache_directory or cache_dir()
-    try:
-        fp = _fingerprint_inputs(catalog_paths)
-    except FileNotFoundError as exc:
-        raise MissingDatasetError(str(exc)) from exc
-    index_file = directory / f"indexes_{fp}.pkl"
-    if not index_file.exists():
-        raise MissingDatasetError(
-            f"Missing catalog index cache: {index_file}. Rebuild the merged dataset first."
-        )
-    with index_file.open("rb") as f:
-        return pickle.load(f)
-
-
 def load_catalog_bundle(catalog_paths: list[str] | None = None) -> CatalogBundle:
+    configured_parquet = os.getenv("CATALOG_PARQUET_PATH")
+    if configured_parquet and catalog_paths is None:
+        try:
+            return CatalogBundle(
+                paths=[configured_parquet], catalog=CatalogStore(configured_parquet)
+            )
+        except FileNotFoundError as exc:
+            raise MissingDatasetError(str(exc)) from exc
+
     paths = catalog_paths or default_catalog_paths()
     directory = cache_dir()
     missing = [path for path in paths if not Path(path).exists()]
     if missing:
         raise MissingDatasetError(f"Missing catalog files: {missing}")
     try:
-        catalog = get_merged_dataset(paths, cache_dir=str(directory))
+        fingerprint = _fingerprint_inputs(paths)
+        parquet_path = directory / f"merged_{fingerprint}.parquet"
+        if not parquet_path.exists():
+            # A first-time local build still needs the source DataFrames.
+            get_merged_dataset(paths, cache_dir=str(directory))
+        catalog = CatalogStore(parquet_path)
     except FileNotFoundError as exc:
         raise MissingDatasetError(str(exc)) from exc
-    indexes = load_indexes(paths, cache_directory=directory)
-    return CatalogBundle(paths=paths, catalog=catalog, indexes=indexes)
+    return CatalogBundle(paths=paths, catalog=catalog)
 
 
 def match_playlist_tracks(sp, playlist_url: str, bundle: CatalogBundle) -> pd.DataFrame:
@@ -87,7 +86,10 @@ def match_playlist_tracks(sp, playlist_url: str, bundle: CatalogBundle) -> pd.Da
         raise InvalidPlaylistURLError(str(exc)) from exc
 
     try:
-        user_tracks = fetch_playlist_profile(sp, playlist_id, bundle.indexes, bundle.catalog)
+        if isinstance(bundle.catalog, CatalogStore):
+            user_tracks = fetch_playlist_profile(sp, playlist_id, catalog_store=bundle.catalog)
+        else:
+            user_tracks = fetch_playlist_profile(sp, playlist_id, bundle.indexes, bundle.catalog)
     except Exception as exc:
         raise classify_spotify_error(exc) from exc
 
