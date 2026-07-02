@@ -30,6 +30,7 @@ from webapp.errors import (
 )
 
 SPOTIFY_TRACK_BATCH_SIZE = 50
+CATALOG_MANIFEST_PATH = ROOT_DIR / "data" / "catalog" / "CURRENT"
 
 
 @dataclass(frozen=True)
@@ -52,17 +53,39 @@ def cache_dir(root_dir: Path = ROOT_DIR) -> Path:
     return root_dir / ".dataset_cache"
 
 
-def load_catalog_bundle(catalog_paths: list[str] | None = None) -> CatalogBundle:
-    configured_parquet = os.getenv("CATALOG_PARQUET_PATH")
-    if configured_parquet and catalog_paths is None:
-        try:
-            return CatalogBundle(
-                paths=[configured_parquet], catalog=CatalogStore(configured_parquet)
-            )
-        except FileNotFoundError as exc:
-            raise MissingDatasetError(str(exc)) from exc
+def deployment_catalog_path() -> Path:
+    configured_path = os.getenv("CATALOG_PARQUET_PATH")
+    if configured_path:
+        return Path(configured_path).expanduser()
 
-    paths = catalog_paths or default_catalog_paths()
+    try:
+        artifact_name = CATALOG_MANIFEST_PATH.read_text(encoding="utf-8").strip()
+    except FileNotFoundError as exc:
+        raise MissingDatasetError(
+            "The deployment catalog manifest is missing. Run "
+            "`python scripts/build_deployment_catalog.py` and commit the generated "
+            "data/catalog artifact with Git LFS."
+        ) from exc
+
+    if not artifact_name or Path(artifact_name).name != artifact_name:
+        raise MissingDatasetError(f"Invalid catalog manifest: {CATALOG_MANIFEST_PATH}")
+    return CATALOG_MANIFEST_PATH.parent / artifact_name
+
+
+def load_catalog_bundle(catalog_paths: list[str] | None = None) -> CatalogBundle:
+    if catalog_paths is None:
+        parquet_path = deployment_catalog_path()
+        try:
+            return CatalogBundle(paths=[str(parquet_path)], catalog=CatalogStore(parquet_path))
+        except FileNotFoundError as exc:
+            raise MissingDatasetError(
+                f"Deployment catalog is missing: {parquet_path}. Ensure Git LFS "
+                "objects were fetched or set CATALOG_PARQUET_PATH."
+            ) from exc
+
+    # Explicit paths are a development/evaluation escape hatch. The deployed app
+    # never reaches this raw-data merge path.
+    paths = catalog_paths
     directory = cache_dir()
     missing = [path for path in paths if not Path(path).exists()]
     if missing:

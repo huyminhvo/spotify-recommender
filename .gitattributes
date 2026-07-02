@@ -14,3 +14,6 @@
 *.csv binary
 *.parquet binary
 *.pkl binary
+
+# Deployment catalog artifacts are large binary assets fetched through Git LFS.
+data/catalog/*.parquet filter=lfs diff=lfs merge=lfs -text

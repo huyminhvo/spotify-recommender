@@ -13,6 +13,9 @@ data/raw/
 data/processed/
 *.parquet
 *.csv
+!data/catalog/
+!data/catalog/*.parquet
+!data/catalog/CURRENT
 .env
 
 # Spotify / OAuth cache files

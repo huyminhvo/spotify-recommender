@@ -188,3 +188,33 @@ def test_load_catalog_bundle_raises_missing_dataset(tmp_path):
 
     with pytest.raises(errors.MissingDatasetError):
         services.load_catalog_bundle(catalog_paths=[str(missing_path)])
+
+
+def test_load_catalog_bundle_uses_deployment_manifest(monkeypatch, tmp_path):
+    catalog_dir = tmp_path / "catalog"
+    catalog_dir.mkdir()
+    parquet_path = catalog_dir / "catalog-v1-contenthash.parquet"
+    parquet_path.write_bytes(b"parquet-placeholder")
+    manifest = catalog_dir / "CURRENT"
+    manifest.write_text(f"{parquet_path.name}\n", encoding="utf-8")
+    monkeypatch.setattr(services, "CATALOG_MANIFEST_PATH", manifest)
+    monkeypatch.delenv("CATALOG_PARQUET_PATH", raising=False)
+
+    bundle = services.load_catalog_bundle()
+
+    assert bundle.paths == [str(parquet_path)]
+    assert bundle.catalog.path == parquet_path.resolve()
+
+
+def test_load_catalog_bundle_does_not_fall_back_to_raw_data(monkeypatch, tmp_path):
+    manifest = tmp_path / "missing" / "CURRENT"
+    monkeypatch.setattr(services, "CATALOG_MANIFEST_PATH", manifest)
+    monkeypatch.delenv("CATALOG_PARQUET_PATH", raising=False)
+    monkeypatch.setattr(
+        services,
+        "get_merged_dataset",
+        lambda *args, **kwargs: pytest.fail("raw catalog rebuild was attempted"),
+    )
+
+    with pytest.raises(services.MissingDatasetError, match="manifest is missing"):
+        services.load_catalog_bundle()

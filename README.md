@@ -51,7 +51,7 @@ Create a .env file for local use:
 SPOTIPY_CLIENT_ID=your_client_id
 SPOTIPY_CLIENT_SECRET=your_client_secret
 SPOTIPY_REDIRECT_URI=http://localhost:8888/callback
-# Optional prebuilt catalog and in-memory recommendation sample size:
+# Optional override for the deployment catalog and recommendation sample size:
 CATALOG_PARQUET_PATH=/path/to/merged_catalog.parquet
 CATALOG_CANDIDATE_LIMIT=100000
 ```
@@ -60,6 +60,21 @@ The Streamlit app queries the Parquet catalog with DuckDB instead of loading the
 entire catalog and a pickled lookup index. Each recommendation request loads a
 deterministic, dtype-optimized sample of at most `CATALOG_CANDIDATE_LIMIT`
 eligible tracks; the default is 100,000.
+
+The deployed app reads the immutable artifact named by `data/catalog/CURRENT`;
+it never merges the raw CSV dataset during startup. To publish a new catalog:
+
+```bash
+git lfs install
+python scripts/build_deployment_catalog.py .dataset_cache/merged_<fingerprint>.parquet --version v1
+git add .gitattributes data/catalog/CURRENT data/catalog/*.parquet
+git commit -m "Publish deployment catalog"
+```
+
+The artifact name includes a SHA-256 content prefix. Parquet files under
+`data/catalog/` are tracked by Git LFS. After cloning, `git lfs pull` must leave
+the artifact itself (not an LFS pointer) in the checkout. Raw inputs and
+`.dataset_cache/` remain local development files and are not needed in Cloud.
 
 
 ## Architecture Overview
