@@ -16,7 +16,7 @@ from recommender.recommend import recommend_from_catalog
 from recommender.weightings import DEFAULT_WEIGHTS
 from utils.catalog_store import CatalogStore
 from utils.merge_datasets import _fingerprint_inputs, get_merged_dataset
-from utils.spotify_auth import get_spotify_client
+from utils.spotify_auth import get_public_spotify_client
 from utils.spotify_integration import extract_playlist_id, fetch_playlist_profile
 from utils.spotify_playlist import create_recommendation_playlist
 from webapp.errors import (
@@ -139,20 +139,17 @@ def generate_recommendations(
 def fetch_album_art_urls(sp, spotify_ids: Iterable[str]) -> list[str | None]:
     spotify_ids = list(spotify_ids)
     art_urls: list[str | None] = []
-    for start in range(0, len(spotify_ids), SPOTIFY_TRACK_BATCH_SIZE):
-        batch = spotify_ids[start : start + SPOTIFY_TRACK_BATCH_SIZE]
+    for spotify_id in spotify_ids:
         try:
-            tracks = sp.tracks(batch).get("tracks", [])
+            track = sp.track(spotify_id)
         except Exception:
-            art_urls.extend([None] * len(batch))
+            art_urls.append(None)
             continue
 
-        for track in tracks:
-            images = (track or {}).get("album", {}).get("images", [])
-            art_urls.append(
-                images[1]["url"] if len(images) > 1 else (images[0]["url"] if images else None)
-            )
-        art_urls.extend([None] * (len(batch) - len(tracks)))
+        images = (track or {}).get("album", {}).get("images", [])
+        art_urls.append(
+            images[1]["url"] if len(images) > 1 else (images[0]["url"] if images else None)
+        )
     return art_urls
 
 
@@ -164,7 +161,7 @@ def attach_album_art(sp, recs: pd.DataFrame) -> pd.DataFrame:
 
 def get_spotify_client_or_raise():
     try:
-        return get_spotify_client()
+        return get_public_spotify_client()
     except AppError:
         raise
     except Exception as exc:
@@ -176,8 +173,13 @@ def get_recommendations(
     top_n: int = 10,
     adjustments: dict[str, float] | None = None,
     sp=None,
+    public_sp=None,
 ) -> pd.DataFrame:
-    sp = sp or get_spotify_client_or_raise()
+    if sp is None:
+        raise SpotifyAuthenticationError(
+            "Connect Spotify to read a playlist you own or collaborate on."
+        )
+    public_sp = public_sp or get_spotify_client_or_raise()
     bundle = load_catalog_bundle()
     user_tracks = match_playlist_tracks(sp, playlist_url, bundle)
     recs = generate_recommendations(
@@ -186,7 +188,7 @@ def get_recommendations(
         top_n=top_n,
         adjustments=adjustments,
     )
-    return attach_album_art(sp, recs)
+    return attach_album_art(public_sp, recs)
 
 
 def recommendation_track_uris(recs_df: pd.DataFrame) -> list[str]:

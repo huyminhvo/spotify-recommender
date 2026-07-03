@@ -50,11 +50,28 @@ Create a .env file for local use:
 ```bash
 SPOTIPY_CLIENT_ID=your_client_id
 SPOTIPY_CLIENT_SECRET=your_client_secret
-SPOTIPY_REDIRECT_URI=http://localhost:8888/callback
+SPOTIPY_REDIRECT_URI=http://127.0.0.1:8501/
 # Optional override for the deployment catalog and recommendation sample size:
 CATALOG_PARQUET_PATH=/path/to/merged_catalog.parquet
 CATALOG_CANDIDATE_LIMIT=100000
 ```
+
+Register that exact redirect URI in the Spotify developer dashboard. For a
+hosted deployment, set `SPOTIPY_REDIRECT_URI` to the app's exact HTTPS URL
+(including its path and trailing slash, if any) and add the same value to
+Streamlit secrets alongside the client ID and secret.
+
+Album-art requests use Spotify's client-credentials flow. Spotify's current
+Development Mode API exposes playlist items only when the authorized user owns
+or collaborates on the playlist, so the app asks the user to connect before
+generating recommendations. The same authorization is reused if they choose
+**Add These Songs to Spotify Playlist**. User access and refresh tokens are kept
+in that user's Streamlit session and are never written to a shared `.cache`
+file.
+
+Spotify Development Mode apps are limited to five allowlisted users, and the
+app owner must have Spotify Premium. Plan for those restrictions before sharing
+a hosted instance.
 
 The Streamlit app queries the Parquet catalog with DuckDB instead of loading the
 entire catalog and a pickled lookup index. Each recommendation request loads a

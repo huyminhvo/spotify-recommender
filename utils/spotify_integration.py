@@ -36,10 +36,18 @@ def fetch_playlist_profile(
     """
     matched_rows = []
     total_tracks = 0
-    results = sp.playlist_items(playlist_id, additional_types=["track"])
+    # Spotify renamed the Development Mode endpoint from /tracks to /items in
+    # 2026. Spotipy versions that still target /tracks cannot use the new API.
+    results = sp._get(
+        f"playlists/{playlist_id}/items",
+        limit=50,
+        additional_types="track",
+    )
     while results:
         for item in results["items"]:
-            track = item.get("track")
+            # New responses use `item`; tolerate the former shape for Extended
+            # Quota apps and older test fixtures.
+            track = item.get("item") or item.get("track")
             if not track:
                 continue
             total_tracks += 1

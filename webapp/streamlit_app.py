@@ -1,25 +1,104 @@
+from html import escape
+
 import streamlit as st
 from interface import (
     AppError,
     add_recommendations_to_spotify,
     get_recommendations,
-    get_spotify_client_or_raise,
     setting_scale_to_adjustment,
 )
 
-# maintain persistent Spotify client across reruns
-if "sp_client" not in st.session_state:
-    try:
-        st.session_state.sp_client = get_spotify_client_or_raise()
-    except AppError as e:
-        st.error(e.user_message)
-    except Exception as e:
-        st.error(f"Spotify authentication failed: {e}")
+from utils.spotify_auth import (
+    create_oauth_state,
+    create_user_oauth,
+    decode_oauth_state,
+    get_public_spotify_client,
+    get_spotify_config,
+    get_user_spotify_client,
+)
 
 # force Streamlit to allow custom styling overrides
 st.set_page_config(
     page_title="Spotify Recommender", layout="wide", initial_sidebar_state="collapsed"
 )
+
+try:
+    # Streamlit raises when no secrets.toml exists. That is normal for local
+    # development, where get_spotify_config falls back to .env.
+    try:
+        streamlit_secrets = st.secrets.to_dict()
+    except FileNotFoundError:
+        streamlit_secrets = {}
+    spotify_config = get_spotify_config(streamlit_secrets)
+except Exception as e:
+    spotify_config = None
+    st.error(f"Spotify configuration failed: {e}")
+
+browser_binding = str(st.context.headers.get("User-Agent", ""))
+
+# Spotify redirects back to this exact Streamlit URL with an authorization code.
+# The signed state survives Streamlit replacing its WebSocket session during the
+# external round trip.
+oauth_code = st.query_params.get("code")
+oauth_error = st.query_params.get("error")
+oauth_error_description = st.query_params.get("error_description")
+callback_state = st.query_params.get("state")
+if oauth_error:
+    detail = f": {oauth_error_description}" if oauth_error_description else ""
+    st.error(f"Spotify authorization was denied: {oauth_error}{detail}")
+    st.session_state.pop("spotify_add_pending", None)
+    st.query_params.clear()
+elif oauth_code and spotify_config:
+    try:
+        pending_request = decode_oauth_state(spotify_config, callback_state or "", browser_binding)
+        oauth, cache = create_user_oauth(spotify_config)
+        oauth.get_access_token(oauth_code, check_cache=False)
+        st.session_state.spotify_token_info = cache.get_cached_token()
+        for key in (
+            "playlist_url",
+            "top_n",
+            "energy_setting",
+            "mood_setting",
+            "dance_setting",
+            "acoustic_setting",
+        ):
+            if key in pending_request:
+                st.session_state[key] = pending_request[key]
+        if pending_request.get("action") == "recommend":
+            st.session_state.spotify_recommend_pending = True
+        st.success("Spotify account connected.")
+    except ValueError as e:
+        st.error(f"Spotify authorization state was rejected: {e}")
+    except Exception as e:
+        st.error(f"Spotify authorization failed: {e}")
+    st.query_params.clear()
+
+
+def redirect_to_spotify(config, pending_request):
+    """Immediately send the browser to Spotify, with a visible fallback link."""
+    state = create_oauth_state(config, browser_binding, pending_request)
+    oauth, _ = create_user_oauth(config)
+    authorize_url = oauth.get_authorize_url(state=state)
+    safe_url = escape(authorize_url, quote=True)
+    st.markdown(
+        f'<meta http-equiv="refresh" content="0; url={safe_url}">',
+        unsafe_allow_html=True,
+    )
+    st.caption("Redirecting to Spotify authorization…")
+    st.markdown(f"[Continue to Spotify]({authorize_url})")
+    st.stop()
+
+
+for widget_key, default_value in {
+    "playlist_url": "",
+    "top_n": 10,
+    "energy_setting": 5.5,
+    "mood_setting": 5.5,
+    "dance_setting": 5.5,
+    "acoustic_setting": 5.5,
+}.items():
+    st.session_state.setdefault(widget_key, default_value)
+
 
 st.markdown(
     """
@@ -118,21 +197,24 @@ st.markdown(
 st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
 
 
-playlist_url = st.text_input("Playlist URL", placeholder="https://open.spotify.com/playlist/...")
-top_n = st.slider("Number of recommendations", min_value=5, max_value=25, value=10)
+playlist_url = st.text_input(
+    "Playlist URL",
+    placeholder="https://open.spotify.com/playlist/...",
+    key="playlist_url",
+)
+top_n = st.slider("Number of recommendations", min_value=5, max_value=25, key="top_n")
 with st.expander("Recommendation settings"):
     slider_options = {
         "min_value": 1.0,
         "max_value": 10.0,
-        "value": 5.5,
         "step": 0.5,
         "format": "%.1f",
         "help": "1 lowers this trait, 5.5 keeps it neutral, and 10 raises it.",
     }
-    energy_setting = st.slider("Energy", **slider_options)
-    mood_setting = st.slider("Mood / positivity", **slider_options)
-    dance_setting = st.slider("Danceability", **slider_options)
-    acoustic_setting = st.slider("Acousticness", **slider_options)
+    energy_setting = st.slider("Energy", key="energy_setting", **slider_options)
+    mood_setting = st.slider("Mood / positivity", key="mood_setting", **slider_options)
+    dance_setting = st.slider("Danceability", key="dance_setting", **slider_options)
+    acoustic_setting = st.slider("Acousticness", key="acoustic_setting", **slider_options)
 
 adjustments = {
     "energy": setting_scale_to_adjustment(energy_setting),
@@ -143,16 +225,41 @@ adjustments = {
 go = st.button("Get Recommendations")
 
 if go:
+    st.session_state.spotify_recommend_pending = True
+
+if st.session_state.get("spotify_recommend_pending"):
     if not playlist_url.strip():
         st.warning("Please enter a playlist URL.")
+        st.session_state.spotify_recommend_pending = False
+    elif not st.session_state.get("spotify_token_info"):
+        if spotify_config:
+            redirect_to_spotify(
+                spotify_config,
+                {
+                    "action": "recommend",
+                    "playlist_url": playlist_url,
+                    "top_n": top_n,
+                    "energy_setting": energy_setting,
+                    "mood_setting": mood_setting,
+                    "dance_setting": dance_setting,
+                    "acoustic_setting": acoustic_setting,
+                },
+            )
     else:
+        st.session_state.spotify_recommend_pending = False
+        user_sp, token_cache = get_user_spotify_client(
+            spotify_config, st.session_state.spotify_token_info
+        )
         with st.spinner("Fetching recommendations..."):
             try:
                 recs = get_recommendations(
                     playlist_url,
                     top_n=top_n,
                     adjustments=adjustments,
+                    sp=user_sp,
+                    public_sp=get_public_spotify_client(spotify_config),
                 )
+                st.session_state.spotify_token_info = token_cache.get_cached_token()
                 st.session_state.recs = recs  # persist recs across reruns
 
                 if recs.empty:
@@ -160,8 +267,10 @@ if go:
                 else:
                     st.success(f"Top {len(recs)} recommendations:")
             except AppError as e:
+                st.session_state.spotify_token_info = token_cache.get_cached_token()
                 st.error(e.user_message)
             except Exception as e:
+                st.session_state.spotify_token_info = token_cache.get_cached_token()
                 st.error(f"Error: {e}")
 
 if "recs" in st.session_state and not st.session_state.recs.empty:
@@ -193,13 +302,26 @@ if "recs" in st.session_state and not st.session_state.recs.empty:
     # spacer + button
     st.markdown("<div style='height:20px;'></div>", unsafe_allow_html=True)
     if st.button("Add These Songs to Spotify Playlist"):
-        with st.spinner("Creating playlist in your Spotify account..."):
+        st.session_state.spotify_add_pending = True
+
+    if st.session_state.get("spotify_add_pending"):
+        token_info = st.session_state.get("spotify_token_info")
+        if not token_info:
+            if spotify_config:
+                redirect_to_spotify(spotify_config, {"action": "add"})
+        else:
+            st.session_state.spotify_add_pending = False
+            user_sp, token_cache = get_user_spotify_client(spotify_config, token_info)
+            # API calls may refresh the token; keep the refreshed value in this
+            # browser session and never write it to a shared filesystem cache.
             try:
-                playlist_url = add_recommendations_to_spotify(
-                    st.session_state.recs, sp=st.session_state.sp_client
-                )
+                with st.spinner("Creating playlist in your Spotify account..."):
+                    playlist_url = add_recommendations_to_spotify(st.session_state.recs, sp=user_sp)
+                st.session_state.spotify_token_info = token_cache.get_cached_token()
                 st.success(f"Playlist created! [Open on Spotify]({playlist_url})")
             except AppError as e:
+                st.session_state.spotify_token_info = token_cache.get_cached_token()
                 st.error(e.user_message)
             except Exception as e:
+                st.session_state.spotify_token_info = token_cache.get_cached_token()
                 st.error(f"Failed to create playlist: {e}")
