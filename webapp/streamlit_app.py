@@ -5,6 +5,7 @@ from interface import (
     AppError,
     add_recommendations_to_spotify,
     get_recommendations,
+    load_catalog_bundle,
     setting_scale_to_adjustment,
 )
 
@@ -21,6 +22,13 @@ from utils.spotify_auth import (
 st.set_page_config(
     page_title="Spotify Recommender", layout="wide", initial_sidebar_state="collapsed"
 )
+
+
+@st.cache_resource(show_spinner="Loading recommendation catalog...")
+def get_cached_catalog_bundle():
+    """Share the read-only catalog handle across Streamlit sessions."""
+    return load_catalog_bundle()
+
 
 try:
     # Streamlit raises when no secrets.toml exists. That is normal for local
@@ -258,6 +266,7 @@ if st.session_state.get("spotify_recommend_pending"):
                     adjustments=adjustments,
                     sp=user_sp,
                     public_sp=get_public_spotify_client(spotify_config),
+                    catalog_bundle=get_cached_catalog_bundle(),
                 )
                 st.session_state.spotify_token_info = token_cache.get_cached_token()
                 st.session_state.recs = recs  # persist recs across reruns

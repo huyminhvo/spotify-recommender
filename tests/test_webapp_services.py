@@ -125,6 +125,33 @@ def test_get_recommendations_orchestrates_services(monkeypatch):
     assert public_sp.track_ids == ["rec"]
 
 
+def test_get_recommendations_uses_injected_catalog_bundle(monkeypatch):
+    sp = FakeSpotify()
+    bundle = services.CatalogBundle(paths=["catalog.parquet"], catalog=pd.DataFrame())
+
+    def fail_if_loaded():
+        raise AssertionError("catalog should come from the Streamlit resource cache")
+
+    monkeypatch.setattr(services, "load_catalog_bundle", fail_if_loaded)
+    monkeypatch.setattr(
+        services, "match_playlist_tracks", lambda sp_arg, playlist_url, bundle_arg: pd.DataFrame()
+    )
+    monkeypatch.setattr(
+        services,
+        "generate_recommendations",
+        lambda bundle_arg, user_tracks_arg, top_n, adjustments: pd.DataFrame(
+            {"spotify_id": []}
+        ),
+    )
+
+    services.get_recommendations(
+        "spotify:playlist:test",
+        sp=sp,
+        public_sp=FakeSpotify(),
+        catalog_bundle=bundle,
+    )
+
+
 def test_get_recommendations_requires_user_authorization():
     with pytest.raises(errors.SpotifyAuthenticationError, match="Connect Spotify"):
         services.get_recommendations("spotify:playlist:test")

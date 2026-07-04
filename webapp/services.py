@@ -174,13 +174,14 @@ def get_recommendations(
     adjustments: dict[str, float] | None = None,
     sp=None,
     public_sp=None,
+    catalog_bundle: CatalogBundle | None = None,
 ) -> pd.DataFrame:
     if sp is None:
         raise SpotifyAuthenticationError(
             "Connect Spotify to read a playlist you own or collaborate on."
         )
     public_sp = public_sp or get_spotify_client_or_raise()
-    bundle = load_catalog_bundle()
+    bundle = catalog_bundle or load_catalog_bundle()
     user_tracks = match_playlist_tracks(sp, playlist_url, bundle)
     recs = generate_recommendations(
         bundle,
