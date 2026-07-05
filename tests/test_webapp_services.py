@@ -157,6 +157,22 @@ def test_get_recommendations_requires_user_authorization():
         services.get_recommendations("spotify:playlist:test")
 
 
+@pytest.mark.parametrize(
+    ("artists_raw", "expected"),
+    [
+        (["AJR"], "AJR"),
+        (["Artist One", "Artist Two"], "Artist One, Artist Two"),
+        ("['From Indian Lakes']", "From Indian Lakes"),
+        ('["GAMMAL", "Guest"]', "GAMMAL, Guest"),
+        (("Pablo",), "Pablo"),
+        (None, "Unknown artist"),
+        ("", "Unknown artist"),
+    ],
+)
+def test_format_artist_names(artists_raw, expected):
+    assert services.format_artist_names(artists_raw) == expected
+
+
 def test_match_playlist_tracks_rejects_invalid_playlist_url():
     bundle = services.CatalogBundle(paths=[], catalog=pd.DataFrame(), indexes={})
 

@@ -5,6 +5,7 @@ import streamlit as st
 from interface import (
     AppError,
     add_recommendations_to_spotify,
+    format_artist_names,
     get_recommendations,
     load_catalog_bundle,
     setting_scale_to_adjustment,
@@ -68,7 +69,7 @@ elif oauth_code and spotify_config:
     try:
         pending_request = decode_oauth_state(spotify_config, callback_state or "", browser_binding)
         oauth, cache = create_user_oauth(spotify_config)
-        oauth.get_access_token(oauth_code, check_cache=False)
+        oauth.get_access_token(oauth_code, check_cache=False, as_dict=False)
         st.session_state.spotify_token_info = cache.get_cached_token()
         for key in (
             "playlist_url",
@@ -312,8 +313,7 @@ if "recs" in st.session_state and not st.session_state.recs.empty:
                 if row.get("album_art_url"):
                     st.image(row["album_art_url"], use_container_width=True)
                 title = row.get("title_raw", "Unknown title")
-                artists = row.get("artists_raw", [])
-                artists_str = ", ".join(artists) if isinstance(artists, list) else str(artists)
+                artists_str = format_artist_names(row.get("artists_raw"))
                 st.markdown(f"**{title}**  \n{artists_str}")
                 track_url = f"https://open.spotify.com/track/{row['spotify_id']}"
                 st.markdown(f"[Listen on Spotify]({track_url})", unsafe_allow_html=True)

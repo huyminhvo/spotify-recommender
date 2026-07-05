@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import os
 import sys
 from dataclasses import dataclass
@@ -38,6 +39,30 @@ class CatalogBundle:
     paths: list[str]
     catalog: pd.DataFrame | CatalogStore
     indexes: dict | None = None
+
+
+def format_artist_names(artists_raw) -> str:
+    """Format canonical or serialized artist lists for display."""
+    if artists_raw is None:
+        return "Unknown artist"
+
+    if isinstance(artists_raw, str):
+        text = artists_raw.strip()
+        if text.startswith("[") and text.endswith("]"):
+            try:
+                return format_artist_names(ast.literal_eval(text))
+            except (SyntaxError, ValueError):
+                pass
+        return text or "Unknown artist"
+
+    if hasattr(artists_raw, "tolist"):
+        artists_raw = artists_raw.tolist()
+
+    if isinstance(artists_raw, (list, tuple, set)):
+        names = [str(artist).strip() for artist in artists_raw if str(artist).strip()]
+        return ", ".join(names) or "Unknown artist"
+
+    return str(artists_raw).strip() or "Unknown artist"
 
 
 def default_catalog_paths(root_dir: Path = ROOT_DIR) -> list[str]:
