@@ -1,3 +1,4 @@
+import logging
 from html import escape
 
 import streamlit as st
@@ -17,6 +18,8 @@ from utils.spotify_auth import (
     get_spotify_config,
     get_user_spotify_client,
 )
+
+logger = logging.getLogger(__name__)
 
 # force Streamlit to allow custom styling overrides
 st.set_page_config(
@@ -38,9 +41,10 @@ try:
     except FileNotFoundError:
         streamlit_secrets = {}
     spotify_config = get_spotify_config(streamlit_secrets)
-except Exception as e:
+except Exception:
     spotify_config = None
-    st.error(f"Spotify configuration failed: {e}")
+    logger.exception("Spotify configuration failed")
+    st.error("Spotify is temporarily unavailable because its configuration could not be loaded.")
 
 browser_binding = str(st.context.headers.get("User-Agent", ""))
 
@@ -52,8 +56,12 @@ oauth_error = st.query_params.get("error")
 oauth_error_description = st.query_params.get("error_description")
 callback_state = st.query_params.get("state")
 if oauth_error:
-    detail = f": {oauth_error_description}" if oauth_error_description else ""
-    st.error(f"Spotify authorization was denied: {oauth_error}{detail}")
+    logger.warning(
+        "Spotify authorization was denied: error=%r description=%r",
+        oauth_error,
+        oauth_error_description,
+    )
+    st.error("Spotify authorization was denied. Please try connecting your account again.")
     st.session_state.pop("spotify_add_pending", None)
     st.query_params.clear()
 elif oauth_code and spotify_config:
@@ -75,10 +83,12 @@ elif oauth_code and spotify_config:
         if pending_request.get("action") == "recommend":
             st.session_state.spotify_recommend_pending = True
         st.success("Spotify account connected.")
-    except ValueError as e:
-        st.error(f"Spotify authorization state was rejected: {e}")
-    except Exception as e:
-        st.error(f"Spotify authorization failed: {e}")
+    except ValueError:
+        logger.warning("Spotify authorization state was rejected", exc_info=True)
+        st.error("Spotify authorization could not be verified. Please try connecting again.")
+    except Exception:
+        logger.exception("Spotify authorization failed")
+        st.error("Spotify authorization failed. Please try connecting again.")
     st.query_params.clear()
 
 
@@ -277,10 +287,16 @@ if st.session_state.get("spotify_recommend_pending"):
                     st.success(f"Top {len(recs)} recommendations:")
             except AppError as e:
                 st.session_state.spotify_token_info = token_cache.get_cached_token()
+                logger.warning(
+                    "Recommendation request failed: %s",
+                    e.detail or e.user_message,
+                    exc_info=True,
+                )
                 st.error(e.user_message)
-            except Exception as e:
+            except Exception:
                 st.session_state.spotify_token_info = token_cache.get_cached_token()
-                st.error(f"Error: {e}")
+                logger.exception("Unexpected recommendation failure")
+                st.error("Something went wrong while generating recommendations. Please try again.")
 
 if "recs" in st.session_state and not st.session_state.recs.empty:
     recs = st.session_state.recs
@@ -330,7 +346,13 @@ if "recs" in st.session_state and not st.session_state.recs.empty:
                 st.success(f"Playlist created! [Open on Spotify]({playlist_url})")
             except AppError as e:
                 st.session_state.spotify_token_info = token_cache.get_cached_token()
+                logger.warning(
+                    "Playlist creation failed: %s",
+                    e.detail or e.user_message,
+                    exc_info=True,
+                )
                 st.error(e.user_message)
-            except Exception as e:
+            except Exception:
                 st.session_state.spotify_token_info = token_cache.get_cached_token()
-                st.error(f"Failed to create playlist: {e}")
+                logger.exception("Unexpected playlist creation failure")
+                st.error("Something went wrong while creating the playlist. Please try again.")
