@@ -300,32 +300,6 @@ if st.session_state.get("spotify_recommend_pending"):
                 st.error("Something went wrong while generating recommendations. Please try again.")
 
 if "recs" in st.session_state and not st.session_state.recs.empty:
-    recs = st.session_state.recs
-
-    cols_per_row = 3
-    for i in range(0, len(recs), cols_per_row):
-        cols = st.columns(cols_per_row)
-        for j, col in enumerate(cols):
-            if i + j >= len(recs):
-                break
-            row = recs.iloc[i + j]
-            with col:
-                if row.get("album_art_url"):
-                    st.image(row["album_art_url"], use_container_width=True)
-                title = row.get("title_raw", "Unknown title")
-                artists_str = format_artist_names(row.get("artists_raw"))
-                st.markdown(f"**{title}**  \n{artists_str}")
-                track_url = f"https://open.spotify.com/track/{row['spotify_id']}"
-                st.markdown(f"[Listen on Spotify]({track_url})", unsafe_allow_html=True)
-                reason = row.get("recommendation_reason")
-                if reason:
-                    st.caption(reason)
-                score = row.get("score")
-                if score is not None:
-                    st.caption(f"Recommendation score: {score:.4f}")
-
-    # spacer + button
-    st.markdown("<div style='height:20px;'></div>", unsafe_allow_html=True)
     if st.button("Add These Songs to Spotify Playlist"):
         st.session_state.spotify_add_pending = True
 
@@ -356,3 +330,28 @@ if "recs" in st.session_state and not st.session_state.recs.empty:
                 st.session_state.spotify_token_info = token_cache.get_cached_token()
                 logger.exception("Unexpected playlist creation failure")
                 st.error("Something went wrong while creating the playlist. Please try again.")
+
+if "recs" in st.session_state and not st.session_state.recs.empty:
+    recs = st.session_state.recs
+
+    cols_per_row = 3
+    for i in range(0, len(recs), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for j, col in enumerate(cols):
+            if i + j >= len(recs):
+                break
+            row = recs.iloc[i + j]
+            with col:
+                if row.get("album_art_url"):
+                    st.image(row["album_art_url"], use_container_width=True)
+                title = row.get("title_raw", "Unknown title")
+                artists_str = format_artist_names(row.get("artists_raw"))
+                st.markdown(f"**{title}**  \n{artists_str}")
+                track_url = f"https://open.spotify.com/track/{row['spotify_id']}"
+                st.markdown(f"[Listen on Spotify]({track_url})", unsafe_allow_html=True)
+                reason = row.get("recommendation_reason")
+                if reason:
+                    st.caption(reason)
+                score = row.get("score")
+                if score is not None:
+                    st.caption(f"Recommendation score: {score:.4f}")
