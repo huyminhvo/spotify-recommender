@@ -22,6 +22,7 @@ from utils.spotify_integration import extract_playlist_id, fetch_playlist_profil
 from utils.spotify_playlist import create_recommendation_playlist
 from webapp.errors import (
     AppError,
+    CatalogReadError,
     InvalidPlaylistURLError,
     MissingDatasetError,
     NoCatalogMatchesError,
@@ -139,6 +140,8 @@ def match_playlist_tracks(sp, playlist_url: str, bundle: CatalogBundle) -> pd.Da
         else:
             user_tracks = fetch_playlist_profile(sp, playlist_id, bundle.indexes, bundle.catalog)
     except Exception as exc:
+        if "ZSTD Decompression failure" in str(exc):
+            raise CatalogReadError(str(exc)) from exc
         raise classify_spotify_error(exc) from exc
 
     if user_tracks.empty:
@@ -158,6 +161,8 @@ def generate_recommendations(
         top_n=top_n,
         user_weights=DEFAULT_WEIGHTS,
         adjustments=adjustments,
+        randomize_results=True,
+        random_state=None,
     )
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Iterable, Optional, Tuple
@@ -7,6 +8,8 @@ from typing import Iterable, Optional, Tuple
 import pandas as pd
 
 from utils.matcher import canon_artist_primary, canon_title
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_CANDIDATE_LIMIT = 100_000
 FLOAT32_COLUMNS = [
@@ -48,8 +51,18 @@ class CatalogStore:
         return duckdb.connect(":memory:")
 
     def _query(self, sql: str, parameters: list | None = None) -> pd.DataFrame:
-        with self._connect() as connection:
-            return connection.execute(sql, parameters or []).fetch_df()
+        for attempt in range(2):
+            try:
+                with self._connect() as connection:
+                    return connection.execute(sql, parameters or []).fetch_df()
+            except Exception as exc:
+                if attempt == 0 and "ZSTD Decompression failure" in str(exc):
+                    logger.warning(
+                        "Retrying catalog query after a transient ZSTD decompression failure"
+                    )
+                    continue
+                raise
+        raise AssertionError("catalog query retry loop exited unexpectedly")
 
     def match_track(self, track: dict, duration_tol: int = 2000) -> dict | None:
         track_id = track.get("id")

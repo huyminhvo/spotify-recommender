@@ -56,3 +56,35 @@ def test_catalog_store_filters_and_bounds_candidates(tmp_path):
     candidates = store.load_candidates(exclude_ids=["seed"], min_popularity=20)
 
     assert candidates["spotify_id"].tolist() == ["candidate"]
+
+
+def test_catalog_store_retries_transient_zstd_failure(monkeypatch, tmp_path):
+    path = tmp_path / "catalog.parquet"
+    path.touch()
+    store = CatalogStore(path)
+    attempts = 0
+
+    class FakeResult:
+        def fetch_df(self):
+            return pd.DataFrame({"spotify_id": ["recovered"]})
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def execute(self, sql, parameters):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise RuntimeError("ZSTD Decompression failure")
+            return FakeResult()
+
+    monkeypatch.setattr(store, "_connect", lambda: FakeConnection())
+
+    result = store._query("SELECT 1")
+
+    assert attempts == 2
+    assert result["spotify_id"].tolist() == ["recovered"]

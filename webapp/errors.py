@@ -37,6 +37,12 @@ class MissingDatasetError(AppError):
     user_message = "The local music dataset or cache is missing. Rebuild the catalog data before running recommendations."
 
 
+class CatalogReadError(AppError):
+    user_message = (
+        "The recommendation catalog could not be read. Restart the app or rebuild the catalog."
+    )
+
+
 class NoRecommendationTracksError(AppError):
     user_message = "There are no valid Spotify track IDs to add to a playlist."
 

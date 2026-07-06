@@ -193,3 +193,41 @@ def test_energy_adjustment_penalizes_candidates_by_distance_to_target():
     penalties = (recs["similarity"] - recs["score"]).set_axis(recs["spotify_id"])
     assert penalties["higher"] < penalties["lower"]
     assert (recs["score"] <= recs["similarity"]).all()
+
+
+def test_randomized_results_vary_but_stay_in_the_top_candidate_pool():
+    catalog = pd.DataFrame(
+        [_track("seed", 0.5, 0.5)]
+        + [_track(f"candidate-{index}", 0.5 + index / 100, 0.5) for index in range(20)]
+    )
+    user_tracks = catalog[catalog["spotify_id"] == "seed"].copy()
+
+    first = recommend_from_catalog(
+        catalog,
+        user_tracks,
+        top_n=5,
+        min_popularity=None,
+        use_pca=False,
+        randomize_results=True,
+        random_state=1,
+    )
+    second = recommend_from_catalog(
+        catalog,
+        user_tracks,
+        top_n=5,
+        min_popularity=None,
+        use_pca=False,
+        randomize_results=True,
+        random_state=2,
+    )
+    deterministic_top_pool = recommend_from_catalog(
+        catalog,
+        user_tracks,
+        top_n=15,
+        min_popularity=None,
+        use_pca=False,
+    )
+
+    assert first["spotify_id"].tolist() != second["spotify_id"].tolist()
+    assert set(first["spotify_id"]) <= set(deterministic_top_pool["spotify_id"])
+    assert first["score"].is_monotonic_decreasing

@@ -203,6 +203,18 @@ def test_match_playlist_tracks_classifies_spotify_rate_limit(monkeypatch):
         services.match_playlist_tracks(FakeSpotify(), "spotify:playlist:abc123", bundle)
 
 
+def test_match_playlist_tracks_classifies_catalog_decompression_failure(monkeypatch):
+    bundle = services.CatalogBundle(paths=[], catalog=pd.DataFrame(), indexes={})
+
+    def raise_catalog_failure(sp, playlist_id, indexes, catalog):
+        raise RuntimeError("ZSTD Decompression failure")
+
+    monkeypatch.setattr(services, "fetch_playlist_profile", raise_catalog_failure)
+
+    with pytest.raises(errors.CatalogReadError):
+        services.match_playlist_tracks(FakeSpotify(), "spotify:playlist:abc123", bundle)
+
+
 def test_add_recommendations_to_spotify_classifies_auth_and_access_errors(monkeypatch):
     class AuthFailSpotify(FakeSpotify):
         def me(self):

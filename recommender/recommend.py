@@ -1,5 +1,7 @@
 from typing import Literal
 
+import numpy as np
+
 from recommender.explain import explain_feature_similarity
 from recommender.preprocess import fit_scaler, transform
 from recommender.profile import build_user_profile
@@ -19,6 +21,26 @@ RecommendationStrategy = Literal[
 ]
 
 
+def _sample_from_top_candidates(ranked, top_n, random_state=None):
+    """Select a relevance-weighted subset while preserving score order."""
+    result_size = min(top_n, len(ranked))
+    pool_size = min(len(ranked), max(result_size, result_size * 3))
+    pool = ranked.head(pool_size)
+    if result_size == pool_size:
+        return pool
+
+    # Favor the best-ranked songs while leaving enough probability for nearby
+    # candidates to make repeated recommendations feel fresh.
+    ranks = np.arange(pool_size)
+    weights = np.exp(-ranks / max(result_size, 1))
+    probabilities = weights / weights.sum()
+    rng = np.random.default_rng(random_state)
+    selected_positions = np.sort(
+        rng.choice(pool_size, size=result_size, replace=False, p=probabilities)
+    )
+    return pool.iloc[selected_positions]
+
+
 def recommend_from_catalog(
     catalog,
     user_tracks_df,
@@ -31,6 +53,7 @@ def recommend_from_catalog(
     strategy: RecommendationStrategy = "weighted_cosine",
     same_artist_exclusion=False,
     random_state=0,
+    randomize_results=False,
     adjustments=None,
 ):
     exclude_ids = user_tracks_df["spotify_id"].dropna().tolist()
@@ -119,7 +142,11 @@ def recommend_from_catalog(
     )
     candidates["score"] = scores
     candidates.attrs["steering_targets"] = targets
-    recs = candidates.sort_values("score", ascending=False).head(top_n)
+    ranked = candidates.sort_values("score", ascending=False)
+    if randomize_results:
+        recs = _sample_from_top_candidates(ranked, top_n, random_state)
+    else:
+        recs = ranked.head(top_n)
     return recs.reset_index(drop=True)
 
 
@@ -135,6 +162,7 @@ def recommend(
     strategy: RecommendationStrategy = "weighted_cosine",
     same_artist_exclusion=False,
     random_state=0,
+    randomize_results=False,
     adjustments=None,
 ):
     catalog = get_merged_dataset(catalog_paths)
@@ -150,5 +178,6 @@ def recommend(
         strategy=strategy,
         same_artist_exclusion=same_artist_exclusion,
         random_state=random_state,
+        randomize_results=randomize_results,
         adjustments=adjustments,
     )
