@@ -55,8 +55,12 @@ def recommend_from_catalog(
     random_state=0,
     randomize_results=False,
     adjustments=None,
+    exclude_spotify_ids=None,
 ):
     exclude_ids = user_tracks_df["spotify_id"].dropna().tolist()
+    if exclude_spotify_ids:
+        exclude_ids.extend(track_id for track_id in exclude_spotify_ids if track_id)
+        exclude_ids = list(dict.fromkeys(exclude_ids))
     exclude_artists = None
     if same_artist_exclusion:
         if "artist_primary_canon" in user_tracks_df.columns:
@@ -64,21 +68,27 @@ def recommend_from_catalog(
         else:
             exclude_artists = user_tracks_df["artists_raw"].apply(canon_artist_primary).tolist()
 
-    if hasattr(catalog, "load_candidates"):
-        candidates = catalog.load_candidates(
-            exclude_ids=exclude_ids,
-            exclude_artists=exclude_artists,
-            min_popularity=min_popularity,
-            year_range=year_range,
-        )
-    else:
-        candidates = filter_candidates(
+    def load_candidates(candidate_min_popularity):
+        if hasattr(catalog, "load_candidates"):
+            return catalog.load_candidates(
+                exclude_ids=exclude_ids,
+                exclude_artists=exclude_artists,
+                min_popularity=candidate_min_popularity,
+                year_range=year_range,
+            )
+        return filter_candidates(
             catalog,
             exclude_ids=exclude_ids,
             exclude_artists=exclude_artists,
-            min_popularity=min_popularity,
+            min_popularity=candidate_min_popularity,
             year_range=year_range,
         )
+
+    candidates = load_candidates(min_popularity)
+    if min_popularity is not None and len(candidates) < top_n:
+        # If session memory or popularity filters leave too few candidates,
+        # keep the no-repeat guarantee and widen quality constraints instead.
+        candidates = load_candidates(None)
     if candidates.empty:
         return candidates.assign(score=[], similarity=[]).head(0)
 
@@ -164,6 +174,7 @@ def recommend(
     random_state=0,
     randomize_results=False,
     adjustments=None,
+    exclude_spotify_ids=None,
 ):
     catalog = get_merged_dataset(catalog_paths)
     return recommend_from_catalog(
@@ -180,4 +191,5 @@ def recommend(
         random_state=random_state,
         randomize_results=randomize_results,
         adjustments=adjustments,
+        exclude_spotify_ids=exclude_spotify_ids,
     )

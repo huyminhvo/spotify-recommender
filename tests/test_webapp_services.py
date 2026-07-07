@@ -110,14 +110,20 @@ def test_get_recommendations_orchestrates_services(monkeypatch):
     monkeypatch.setattr(
         services, "match_playlist_tracks", lambda sp_arg, playlist_url, bundle_arg: user_tracks
     )
-    monkeypatch.setattr(
-        services,
-        "generate_recommendations",
-        lambda bundle_arg, user_tracks_arg, top_n, adjustments: recs,
-    )
+    def fake_generate_recommendations(
+        bundle_arg, user_tracks_arg, top_n, adjustments, exclude_spotify_ids
+    ):
+        assert list(exclude_spotify_ids) == ["seen"]
+        return recs
+
+    monkeypatch.setattr(services, "generate_recommendations", fake_generate_recommendations)
 
     result = services.get_recommendations(
-        "spotify:playlist:test", top_n=1, sp=sp, public_sp=public_sp
+        "spotify:playlist:test",
+        top_n=1,
+        sp=sp,
+        public_sp=public_sp,
+        exclude_spotify_ids=["seen"],
     )
 
     assert result["spotify_id"].tolist() == ["rec"]
@@ -139,7 +145,7 @@ def test_get_recommendations_uses_injected_catalog_bundle(monkeypatch):
     monkeypatch.setattr(
         services,
         "generate_recommendations",
-        lambda bundle_arg, user_tracks_arg, top_n, adjustments: pd.DataFrame(
+        lambda bundle_arg, user_tracks_arg, top_n, adjustments, exclude_spotify_ids: pd.DataFrame(
             {"spotify_id": []}
         ),
     )

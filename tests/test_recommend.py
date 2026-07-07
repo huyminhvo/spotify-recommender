@@ -149,6 +149,31 @@ def test_recommend_supports_unweighted_cosine_and_same_artist_exclusion(monkeypa
     assert recs["spotify_id"].tolist() == ["other_artist"]
 
 
+def test_recommend_excludes_seen_tracks_and_falls_back_to_lower_popularity():
+    catalog = pd.DataFrame(
+        [
+            _track("seed", 0.5, 0.5, popularity=80),
+            _track("seen_close", 0.51, 0.51, popularity=90),
+            _track("unseen_popular", 0.52, 0.52, popularity=70),
+            _track("unseen_shoddy", 0.95, 0.95, popularity=1),
+        ]
+    )
+    user_tracks = catalog[catalog["spotify_id"] == "seed"].copy()
+
+    recs = recommend_from_catalog(
+        catalog,
+        user_tracks,
+        top_n=2,
+        min_popularity=20,
+        use_pca=False,
+        exclude_spotify_ids={"seen_close"},
+    )
+
+    assert len(recs) == 2
+    assert "seen_close" not in recs["spotify_id"].tolist()
+    assert set(recs["spotify_id"]) == {"unseen_popular", "unseen_shoddy"}
+
+
 def test_neutral_adjustments_preserve_the_base_ranking():
     catalog = pd.DataFrame(
         [

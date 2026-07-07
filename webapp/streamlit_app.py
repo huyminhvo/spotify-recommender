@@ -115,6 +115,7 @@ for widget_key, default_value in {
     "mood_setting": 5.5,
     "dance_setting": 5.5,
     "acoustic_setting": 5.5,
+    "seen_recommendation_ids": set(),
 }.items():
     st.session_state.setdefault(widget_key, default_value)
 
@@ -278,14 +279,23 @@ if st.session_state.get("spotify_recommend_pending"):
                     sp=user_sp,
                     public_sp=get_public_spotify_client(spotify_config),
                     catalog_bundle=get_cached_catalog_bundle(),
+                    exclude_spotify_ids=st.session_state.seen_recommendation_ids,
                 )
                 st.session_state.spotify_token_info = token_cache.get_cached_token()
                 st.session_state.recs = recs  # persist recs across reruns
+                st.session_state.seen_recommendation_ids.update(
+                    recs["spotify_id"].dropna().astype(str)
+                )
 
                 if recs.empty:
                     st.error("No recommendations found.")
                 else:
                     st.success(f"Top {len(recs)} recommendations:")
+                    if len(recs) < top_n:
+                        st.warning(
+                            "The catalog ran out of unseen tracks before reaching the "
+                            "requested count."
+                        )
             except AppError as e:
                 st.session_state.spotify_token_info = token_cache.get_cached_token()
                 logger.warning(

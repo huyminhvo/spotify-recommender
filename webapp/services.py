@@ -154,6 +154,7 @@ def generate_recommendations(
     user_tracks_df: pd.DataFrame,
     top_n: int = 10,
     adjustments: dict[str, float] | None = None,
+    exclude_spotify_ids: Iterable[str] | None = None,
 ) -> pd.DataFrame:
     return recommend_from_catalog(
         catalog=bundle.catalog,
@@ -163,6 +164,7 @@ def generate_recommendations(
         adjustments=adjustments,
         randomize_results=True,
         random_state=None,
+        exclude_spotify_ids=exclude_spotify_ids,
     )
 
 
@@ -205,6 +207,7 @@ def get_recommendations(
     sp=None,
     public_sp=None,
     catalog_bundle: CatalogBundle | None = None,
+    exclude_spotify_ids: Iterable[str] | None = None,
 ) -> pd.DataFrame:
     if sp is None:
         raise SpotifyAuthenticationError(
@@ -218,6 +221,7 @@ def get_recommendations(
         user_tracks,
         top_n=top_n,
         adjustments=adjustments,
+        exclude_spotify_ids=exclude_spotify_ids,
     )
     return attach_album_art(public_sp, recs)
 
