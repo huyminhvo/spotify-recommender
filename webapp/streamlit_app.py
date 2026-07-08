@@ -1,5 +1,4 @@
 import logging
-from html import escape
 
 import streamlit as st
 from interface import (
@@ -94,17 +93,21 @@ elif oauth_code and spotify_config:
 
 
 def redirect_to_spotify(config, pending_request):
-    """Immediately send the browser to Spotify, with a visible fallback link."""
+    """Ask the user to continue to Spotify as a top-level navigation.
+
+    Spotify refuses to render inside Streamlit Cloud's app frame. A meta refresh
+    from inside the Streamlit document can therefore land the user on Chrome's
+    "accounts.spotify.com refused to connect" error page. A normal user-clicked
+    link avoids that frame restriction and still redirects back to this app.
+    """
     state = create_oauth_state(config, browser_binding, pending_request)
     oauth, _ = create_user_oauth(config)
     authorize_url = oauth.get_authorize_url(state=state)
-    safe_url = escape(authorize_url, quote=True)
-    st.markdown(
-        f'<meta http-equiv="refresh" content="0; url={safe_url}">',
-        unsafe_allow_html=True,
+    st.info("Connect your Spotify account to continue.")
+    st.link_button("Continue to Spotify", authorize_url, type="primary")
+    st.caption(
+        "After approving access on Spotify, you'll be sent back here automatically."
     )
-    st.caption("Redirecting to Spotify authorization…")
-    st.markdown(f"[Continue to Spotify]({authorize_url})")
     st.stop()
 
 
