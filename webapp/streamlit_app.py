@@ -101,32 +101,30 @@ def get_spotify_authorize_url(config, pending_request):
 
 
 def render_spotify_authorize_button(config, pending_request, label="Get Recommendations"):
-    """Render a user-clicked Spotify authorization link styled like a button.
+    """Render a user-clicked Spotify authorization submit styled like a button.
 
     Spotify refuses to render inside Streamlit Cloud's app frame. A meta refresh
     from inside the Streamlit document can therefore land the user on Chrome's
     "accounts.spotify.com refused to connect" error page. A normal user-clicked
-    link avoids that frame restriction and still redirects back to this app.
+    top-level form submit avoids that frame restriction and still redirects back
+    to this app.
     """
     authorize_url = get_spotify_authorize_url(config, pending_request)
-    style = (
-        "align-items:center;"
+    button_style = (
         "background-color:transparent;"
         "border:1px solid rgba(250,250,250,0.2);"
         "border-radius:0.5rem;"
-        "color:#ffffff!important;"
-        "display:inline-flex;"
-        "font-size:1rem;"
-        "font-weight:600;"
-        "line-height:1.6;"
+        "color:#ffffff;"
+        "cursor:pointer;"
+        "font:600 1rem/1.6 sans-serif;"
         "min-height:2.75rem;"
         "padding:0.5rem 1rem;"
-        "text-decoration:none!important;"
     )
     st.markdown(
         (
-            f'<a href="{escape(authorize_url, quote=True)}" target="_top" '
-            f'rel="noopener noreferrer" style="{style}">{escape(label)}</a>'
+            f'<form action="{escape(authorize_url, quote=True)}" target="_top">'
+            f'<button type="submit" style="{button_style}">{escape(label)}</button>'
+            "</form>"
         ),
         unsafe_allow_html=True,
     )
