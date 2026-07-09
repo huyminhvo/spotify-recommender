@@ -1,4 +1,5 @@
 import logging
+from html import escape
 
 import streamlit as st
 from interface import (
@@ -92,17 +93,52 @@ elif oauth_code and spotify_config:
     st.query_params.clear()
 
 
-def redirect_to_spotify(config, pending_request):
-    """Ask the user to continue to Spotify as a top-level navigation.
+def get_spotify_authorize_url(config, pending_request):
+    """Build a Spotify authorization URL with a signed pending request."""
+    state = create_oauth_state(config, browser_binding, pending_request)
+    oauth, _ = create_user_oauth(config)
+    return oauth.get_authorize_url(state=state)
+
+
+def render_spotify_authorize_button(config, pending_request, label="Get Recommendations"):
+    """Render a user-clicked link styled like the main action button.
 
     Spotify refuses to render inside Streamlit Cloud's app frame. A meta refresh
     from inside the Streamlit document can therefore land the user on Chrome's
     "accounts.spotify.com refused to connect" error page. A normal user-clicked
     link avoids that frame restriction and still redirects back to this app.
     """
-    state = create_oauth_state(config, browser_binding, pending_request)
-    oauth, _ = create_user_oauth(config)
-    authorize_url = oauth.get_authorize_url(state=state)
+    authorize_url = get_spotify_authorize_url(config, pending_request)
+    st.markdown(
+        f"""
+        <a
+            href="{escape(authorize_url, quote=True)}"
+            target="_top"
+            rel="noopener noreferrer"
+            style="
+                align-items: center;
+                background-color: transparent;
+                border: 1px solid rgba(250, 250, 250, 0.2);
+                border-radius: 0.5rem;
+                color: #ffffff !important;
+                display: inline-flex;
+                font-size: 1rem;
+                font-weight: 600;
+                min-height: 2.75rem;
+                padding: 0.5rem 1rem;
+                text-decoration: none !important;
+            "
+        >
+            {escape(label)}
+        </a>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def redirect_to_spotify(config, pending_request):
+    """Ask the user to continue to Spotify as a top-level navigation."""
+    authorize_url = get_spotify_authorize_url(config, pending_request)
     st.info("Connect your Spotify account to continue.")
     st.link_button("Continue to Spotify", authorize_url, type="primary")
     st.caption(
@@ -245,7 +281,29 @@ adjustments = {
     "danceability": setting_scale_to_adjustment(dance_setting),
     "acousticness": setting_scale_to_adjustment(acoustic_setting),
 }
-go = st.button("Get Recommendations")
+recommend_request = {
+    "action": "recommend",
+    "playlist_url": playlist_url,
+    "top_n": top_n,
+    "energy_setting": energy_setting,
+    "mood_setting": mood_setting,
+    "dance_setting": dance_setting,
+    "acoustic_setting": acoustic_setting,
+}
+
+if st.session_state.get("spotify_token_info"):
+    go = st.button("Get Recommendations")
+else:
+    go = False
+    if playlist_url.strip() and spotify_config:
+        render_spotify_authorize_button(spotify_config, recommend_request)
+    elif st.button("Get Recommendations"):
+        if not playlist_url.strip():
+            st.warning("Please enter a playlist URL.")
+        elif not spotify_config:
+            st.error(
+                "Spotify is temporarily unavailable because its configuration could not be loaded."
+            )
 
 if go:
     st.session_state.spotify_recommend_pending = True
@@ -256,18 +314,7 @@ if st.session_state.get("spotify_recommend_pending"):
         st.session_state.spotify_recommend_pending = False
     elif not st.session_state.get("spotify_token_info"):
         if spotify_config:
-            redirect_to_spotify(
-                spotify_config,
-                {
-                    "action": "recommend",
-                    "playlist_url": playlist_url,
-                    "top_n": top_n,
-                    "energy_setting": energy_setting,
-                    "mood_setting": mood_setting,
-                    "dance_setting": dance_setting,
-                    "acoustic_setting": acoustic_setting,
-                },
-            )
+            redirect_to_spotify(spotify_config, recommend_request)
     else:
         st.session_state.spotify_recommend_pending = False
         user_sp, token_cache = get_user_spotify_client(
