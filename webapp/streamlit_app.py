@@ -1,7 +1,8 @@
+import json
 import logging
-from html import escape
 
 import streamlit as st
+import streamlit.components.v1 as components
 from interface import (
     AppError,
     add_recommendations_to_spotify,
@@ -100,39 +101,21 @@ def get_spotify_authorize_url(config, pending_request):
     return oauth.get_authorize_url(state=state)
 
 
-def render_spotify_authorize_button(config, pending_request, label="Get Recommendations"):
-    """Render a user-clicked Spotify authorization submit styled like a button.
-
-    Spotify refuses to render inside Streamlit Cloud's app frame. A meta refresh
-    from inside the Streamlit document can therefore land the user on Chrome's
-    "accounts.spotify.com refused to connect" error page. A normal user-clicked
-    top-level form submit avoids that frame restriction and still redirects back
-    to this app.
-    """
+def redirect_to_spotify(config, pending_request, *, automatic=False):
+    """Navigate to Spotify as a top-level browser page."""
     authorize_url = get_spotify_authorize_url(config, pending_request)
-    button_style = (
-        "background-color:transparent;"
-        "border:1px solid rgba(250,250,250,0.2);"
-        "border-radius:0.5rem;"
-        "color:#ffffff;"
-        "cursor:pointer;"
-        "font:600 1rem/1.6 sans-serif;"
-        "min-height:2.75rem;"
-        "padding:0.5rem 1rem;"
-    )
-    st.markdown(
-        (
-            f'<form action="{escape(authorize_url, quote=True)}" target="_top">'
-            f'<button type="submit" style="{button_style}">{escape(label)}</button>'
-            "</form>"
-        ),
-        unsafe_allow_html=True,
-    )
+    if automatic:
+        st.info("Opening Spotify authorization...")
+        components.html(
+            (
+                "<script>"
+                f"window.top.location.href = {json.dumps(authorize_url)};"
+                "</script>"
+            ),
+            height=0,
+        )
+        st.stop()
 
-
-def redirect_to_spotify(config, pending_request):
-    """Ask the user to continue to Spotify as a top-level navigation."""
-    authorize_url = get_spotify_authorize_url(config, pending_request)
     st.info("Connect your Spotify account to continue.")
     st.link_button("Continue to Spotify", authorize_url, type="primary")
     st.caption(
@@ -285,22 +268,20 @@ recommend_request = {
     "acoustic_setting": acoustic_setting,
 }
 
-if st.session_state.get("spotify_token_info"):
-    go = st.button("Get Recommendations")
-else:
-    go = False
-    if playlist_url.strip() and spotify_config:
-        render_spotify_authorize_button(spotify_config, recommend_request)
-    elif st.button("Get Recommendations"):
-        if not playlist_url.strip():
-            st.warning("Please enter a playlist URL.")
-        elif not spotify_config:
+go = st.button("Get Recommendations")
+
+if go:
+    if not playlist_url.strip():
+        st.warning("Please enter a playlist URL.")
+    elif not st.session_state.get("spotify_token_info"):
+        if spotify_config:
+            redirect_to_spotify(spotify_config, recommend_request, automatic=True)
+        else:
             st.error(
                 "Spotify is temporarily unavailable because its configuration could not be loaded."
             )
-
-if go:
-    st.session_state.spotify_recommend_pending = True
+    else:
+        st.session_state.spotify_recommend_pending = True
 
 if st.session_state.get("spotify_recommend_pending"):
     if not playlist_url.strip():
