@@ -1,4 +1,5 @@
 import logging
+from html import escape
 
 import streamlit as st
 from interface import (
@@ -100,7 +101,7 @@ def get_spotify_authorize_url(config, pending_request):
 
 
 def render_spotify_authorize_button(config, pending_request, label="Get Recommendations"):
-    """Render a user-clicked Spotify authorization link.
+    """Render a user-clicked Spotify authorization link styled like a button.
 
     Spotify refuses to render inside Streamlit Cloud's app frame. A meta refresh
     from inside the Streamlit document can therefore land the user on Chrome's
@@ -108,7 +109,27 @@ def render_spotify_authorize_button(config, pending_request, label="Get Recommen
     link avoids that frame restriction and still redirects back to this app.
     """
     authorize_url = get_spotify_authorize_url(config, pending_request)
-    st.link_button(label, authorize_url)
+    style = (
+        "align-items:center;"
+        "background-color:transparent;"
+        "border:1px solid rgba(250,250,250,0.2);"
+        "border-radius:0.5rem;"
+        "color:#ffffff!important;"
+        "display:inline-flex;"
+        "font-size:1rem;"
+        "font-weight:600;"
+        "line-height:1.6;"
+        "min-height:2.75rem;"
+        "padding:0.5rem 1rem;"
+        "text-decoration:none!important;"
+    )
+    st.markdown(
+        (
+            f'<a href="{escape(authorize_url, quote=True)}" target="_top" '
+            f'rel="noopener noreferrer" style="{style}">{escape(label)}</a>'
+        ),
+        unsafe_allow_html=True,
+    )
 
 
 def redirect_to_spotify(config, pending_request):
