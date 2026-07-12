@@ -1,5 +1,4 @@
 import logging
-from html import escape
 
 import streamlit as st
 from interface import (
@@ -101,15 +100,13 @@ def get_spotify_authorize_url(config, pending_request):
 
 
 def redirect_to_spotify(config, pending_request):
-    """Immediately send the browser to Spotify, with a visible fallback link."""
+    """Prompt for a user-initiated top-level Spotify navigation."""
     authorize_url = get_spotify_authorize_url(config, pending_request)
-    safe_url = escape(authorize_url, quote=True)
-    st.markdown(
-        f'<meta http-equiv="refresh" content="0; url={safe_url}">',
-        unsafe_allow_html=True,
+    st.info("Connect your Spotify account to continue.")
+    st.link_button("Continue to Spotify", authorize_url)
+    st.caption(
+        "After approving access on Spotify, you'll be sent back here automatically."
     )
-    st.caption("Redirecting to Spotify authorization…")
-    st.markdown(f"[Continue to Spotify]({authorize_url})")
     st.stop()
 
 
