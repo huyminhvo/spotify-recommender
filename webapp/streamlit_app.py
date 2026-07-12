@@ -1,8 +1,7 @@
-import json
 import logging
+from html import escape
 
 import streamlit as st
-import streamlit.components.v1 as components
 from interface import (
     AppError,
     add_recommendations_to_spotify,
@@ -101,26 +100,16 @@ def get_spotify_authorize_url(config, pending_request):
     return oauth.get_authorize_url(state=state)
 
 
-def redirect_to_spotify(config, pending_request, *, automatic=False):
-    """Navigate to Spotify as a top-level browser page."""
+def redirect_to_spotify(config, pending_request):
+    """Immediately send the browser to Spotify, with a visible fallback link."""
     authorize_url = get_spotify_authorize_url(config, pending_request)
-    if automatic:
-        st.info("Opening Spotify authorization...")
-        components.html(
-            (
-                "<script>"
-                f"window.top.location.href = {json.dumps(authorize_url)};"
-                "</script>"
-            ),
-            height=0,
-        )
-        st.stop()
-
-    st.info("Connect your Spotify account to continue.")
-    st.link_button("Continue to Spotify", authorize_url, type="primary")
-    st.caption(
-        "After approving access on Spotify, you'll be sent back here automatically."
+    safe_url = escape(authorize_url, quote=True)
+    st.markdown(
+        f'<meta http-equiv="refresh" content="0; url={safe_url}">',
+        unsafe_allow_html=True,
     )
+    st.caption("Redirecting to Spotify authorization…")
+    st.markdown(f"[Continue to Spotify]({authorize_url})")
     st.stop()
 
 
@@ -175,14 +164,6 @@ div[data-testid="column"]:hover {
     box-shadow: 0 6px 14px rgba(0,0,0,0.4);
 }
 
-/* Buttons / links */
-a {
-    color: #1DB954 !important; /* Spotify green */
-    text-decoration: none;
-}
-a:hover {
-    text-decoration: underline;
-}
 </style>
 """,
     unsafe_allow_html=True,
@@ -271,17 +252,7 @@ recommend_request = {
 go = st.button("Get Recommendations")
 
 if go:
-    if not playlist_url.strip():
-        st.warning("Please enter a playlist URL.")
-    elif not st.session_state.get("spotify_token_info"):
-        if spotify_config:
-            redirect_to_spotify(spotify_config, recommend_request, automatic=True)
-        else:
-            st.error(
-                "Spotify is temporarily unavailable because its configuration could not be loaded."
-            )
-    else:
-        st.session_state.spotify_recommend_pending = True
+    st.session_state.spotify_recommend_pending = True
 
 if st.session_state.get("spotify_recommend_pending"):
     if not playlist_url.strip():
