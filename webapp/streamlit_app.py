@@ -104,9 +104,7 @@ def redirect_to_spotify(config, pending_request):
     authorize_url = get_spotify_authorize_url(config, pending_request)
     st.info("Connect your Spotify account to continue.")
     st.link_button("Continue to Spotify", authorize_url)
-    st.caption(
-        "After approving access on Spotify, you'll be sent back here automatically."
-    )
+    st.caption("After approving access on Spotify, you'll be sent back here automatically.")
     st.stop()
 
 

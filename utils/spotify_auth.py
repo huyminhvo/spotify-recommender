@@ -61,9 +61,9 @@ def decode_oauth_state(
         signature = base64.urlsafe_b64decode(
             encoded_signature + "=" * (-len(encoded_signature) % 4)
         )
-        expected_encoded_signature = base64.urlsafe_b64encode(expected_signature).rstrip(
-            b"="
-        ).decode()
+        expected_encoded_signature = (
+            base64.urlsafe_b64encode(expected_signature).rstrip(b"=").decode()
+        )
         if not hmac.compare_digest(encoded_signature, expected_encoded_signature):
             raise ValueError("OAuth state signature encoding did not match.")
         if not hmac.compare_digest(signature, expected_signature):

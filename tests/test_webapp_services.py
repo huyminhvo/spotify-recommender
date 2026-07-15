@@ -110,6 +110,7 @@ def test_get_recommendations_orchestrates_services(monkeypatch):
     monkeypatch.setattr(
         services, "match_playlist_tracks", lambda sp_arg, playlist_url, bundle_arg: user_tracks
     )
+
     def fake_generate_recommendations(
         bundle_arg, user_tracks_arg, top_n, adjustments, exclude_spotify_ids
     ):
