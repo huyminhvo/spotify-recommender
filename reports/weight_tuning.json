@@ -1,0 +1,452 @@
+{
+  "config": {
+    "bootstrap_samples": 2000,
+    "min_playlists": 10,
+    "min_popularity": 20,
+    "min_test_playlists": 2,
+    "min_tuning_playlists": 5,
+    "num_splits": 20,
+    "num_trials": 20,
+    "pca_components": 5,
+    "random_state": 0,
+    "seed_size": 5,
+    "test_fraction": 0.2,
+    "top_k": 10,
+    "weight_max": 4.0,
+    "weight_min": 0.25
+  },
+  "final_benchmark_note": "Run the final benchmark once on test_playlist_ids. Do not use those results to revise the selected weights.",
+  "final_benchmark_required": true,
+  "partition": {
+    "test_playlist_ids": [
+      "0FFQ9gRyshVrB1U0iohgXj",
+      "0UHWmoJhCZ7ojyDCBMCCp8",
+      "0dfO0rYH8sjSvxm585CZZ5",
+      "1Fcf4vwN4Ch7FRB7G5QlqD",
+      "2P1l4uz6HAdQbhwYXNJcXG",
+      "2zS3oqbUT70lfN5eTS2RTd",
+      "30UDMrvjisDJMCYFUFzdJq",
+      "4mhqLmiO5ODtl34jjdVtBT",
+      "5EFs9OQ2NW9vYkPeMJnnQP"
+    ],
+    "tuning_playlist_ids": [
+      "01F7x0M4ufbtXzZE7kdpGZ",
+      "0a2Tt4JT6Xfn2iMN7xge7u",
+      "0i1YubKZNMpJXedWtFw9BG",
+      "0mqQhdr3u8GO67PFUpXwRg",
+      "0tnyoeH10WiK1QrlaUYePQ",
+      "12HlwpO50bztNSL1Nx2RB7",
+      "17O1FxldnCb3PRGrD1bI3w",
+      "1FMea1boZACKIVc3alSwkT",
+      "1Jkb0crs4C7nltZtJWxBnJ",
+      "209en8BlFIKtrEGeXERewd",
+      "24mx8YsqRVUzn3RWGpDKCK",
+      "26BtTxjZahswbzT3nIo2rY",
+      "27g8f8OFkEHj3DbVf390uX",
+      "2GkO93zo5UTXUMNldQl3wz",
+      "2QkXeQc4DlkoCw8ZjsMP0U",
+      "2tfnwkIIdLXYMXLwpTQojD",
+      "2udCrZGj7kYgyrkgfmEK6c",
+      "31JxrAL2nBXV2EKZvaEcmn",
+      "38kXFDyGVeBGHQ0CkLae85",
+      "3X9toaG8m4sYaimiAxakeT",
+      "3edLy36NPmuhsbmHj54qP3",
+      "3h1nHOjI35cFqIENynCEKv",
+      "40NaNSImzORDUak3O5lTDL",
+      "4AL9vqgUe68w6FCEC5zNah",
+      "4jn2kz9v4lUwGg2jd0QDLk",
+      "53xl2IqdhX9lsHrfFhVipF",
+      "5L1eRrOoeRI4S58RrgcZaY",
+      "5X8eskiKnBaeRiMOoIUWed",
+      "5Zmx0pdG9b6ObZfAiUQS55",
+      "6NpLhn1wCaQ8nYRU9rahGY",
+      "6hSjHssxSJzgXVBOtKRNmO",
+      "70q120zgDkQY0natXzkaJM",
+      "7A8LygzvIcQ40G21WmmPhH",
+      "7GE8CGSCkDcAVlFnGM4xoW",
+      "7sFXeRKH8QKwhyiBONR5s7"
+    ]
+  },
+  "schema_version": 1,
+  "selected_weights": {
+    "acousticness": 2.740730287491347,
+    "danceability": 3.270918276929538,
+    "duration_ms": 2.44442528635508,
+    "energy": 3.6596476673413654,
+    "instrumentalness": 3.7967898799707642,
+    "liveness": 3.552514944309963,
+    "loudness": 2.9480116442218534,
+    "speechiness": 0.37763281720026054,
+    "tempo": 3.7076761993468903,
+    "valence": 0.26040430778612444
+  },
+  "selection": {
+    "primary_metric": "mean_ndcg_at_k",
+    "selected_trial": "random_010",
+    "tie_break_metric": "mean_recall_at_k"
+  },
+  "test_playlists_evaluated": false,
+  "trials": [
+    {
+      "mean_ndcg_at_k": 0.00012163302520231569,
+      "mean_recall_at_k": 3.80952380952381e-06,
+      "name": "uniform",
+      "source": "baseline",
+      "weights": {
+        "acousticness": 1.0,
+        "danceability": 1.0,
+        "duration_ms": 1.0,
+        "energy": 1.0,
+        "instrumentalness": 1.0,
+        "liveness": 1.0,
+        "loudness": 1.0,
+        "speechiness": 1.0,
+        "tempo": 1.0,
+        "valence": 1.0
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.0007199323537731958,
+      "mean_recall_at_k": 0.000111840540411969,
+      "name": "hand_set_defaults",
+      "source": "baseline",
+      "weights": {
+        "acousticness": 2.0,
+        "danceability": 1.5,
+        "duration_ms": 0.25,
+        "energy": 2.0,
+        "instrumentalness": 2.0,
+        "liveness": 0.5,
+        "loudness": 0.75,
+        "speechiness": 0.25,
+        "tempo": 1.0,
+        "valence": 0.5
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.0006812364194940575,
+      "mean_recall_at_k": 9.63327859879584e-05,
+      "name": "random_001",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 0.26172262342439134,
+        "danceability": 1.4619021491567956,
+        "duration_ms": 3.3410224922786456,
+        "energy": 0.5281965762139709,
+        "instrumentalness": 2.3834988953845584,
+        "liveness": 3.1405610383759823,
+        "loudness": 1.1285731766477378,
+        "speechiness": 1.344009283279851,
+        "tempo": 1.8894760657977259,
+        "valence": 0.2800767431343538
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.0,
+      "mean_recall_at_k": 0.0,
+      "name": "random_002",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 0.2743980817675104,
+        "danceability": 2.400631918416001,
+        "duration_ms": 0.807060585474788,
+        "energy": 0.2519054081473391,
+        "instrumentalness": 1.8903086087078413,
+        "liveness": 0.406865112073053,
+        "loudness": 0.5738905653756424,
+        "speechiness": 2.737228149964711,
+        "tempo": 1.1218228553157987,
+        "valence": 2.6937521325808746
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.00043294520714509547,
+      "mean_recall_at_k": 4.1680487109117555e-05,
+      "name": "random_003",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 1.5039515032417399,
+        "danceability": 0.27042092288204983,
+        "duration_ms": 1.5176478854332194,
+        "energy": 0.3528515141535593,
+        "instrumentalness": 1.37701134523344,
+        "liveness": 0.7243255730102405,
+        "loudness": 1.6726874988511777,
+        "speechiness": 3.9691765718533736,
+        "tempo": 3.7930052147662354,
+        "valence": 1.604915854200677
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.0003031805228184494,
+      "mean_recall_at_k": 5.763376527496128e-05,
+      "name": "random_004",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 1.8479854025397522,
+        "danceability": 1.6862131581739426,
+        "duration_ms": 0.6741683418817953,
+        "energy": 0.7349335388743107,
+        "instrumentalness": 1.0728268799532028,
+        "liveness": 0.5908924630310528,
+        "loudness": 3.3315050115164064,
+        "speechiness": 0.9614884520656591,
+        "tempo": 2.9443544085662015,
+        "valence": 0.3635904017404672
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.0,
+      "mean_recall_at_k": 0.0,
+      "name": "random_005",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 0.6380073290522675,
+        "danceability": 1.2193559408175352,
+        "duration_ms": 2.5150317112091183,
+        "energy": 0.6102522288326675,
+        "instrumentalness": 0.7404509127221259,
+        "liveness": 2.9507821386253448,
+        "loudness": 0.31557643281945197,
+        "speechiness": 0.4693156171858172,
+        "tempo": 1.4071231318860635,
+        "valence": 1.2988187534981954
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.0003031805228184494,
+      "mean_recall_at_k": 2.6955587177501183e-05,
+      "name": "random_006",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 0.2940782800721365,
+        "danceability": 2.216668802465041,
+        "duration_ms": 0.2887885012211223,
+        "energy": 0.48547798221103067,
+        "instrumentalness": 0.6348414541942119,
+        "liveness": 0.3792228674271354,
+        "loudness": 0.47387184000082166,
+        "speechiness": 0.871370070826902,
+        "tempo": 2.2741021835673947,
+        "valence": 2.840090541420717
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.00043604983419957306,
+      "mean_recall_at_k": 4.416839199447895e-05,
+      "name": "random_007",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 1.2494815026949602,
+        "danceability": 0.7674833508425485,
+        "duration_ms": 0.3349415169272235,
+        "energy": 0.43348445933195967,
+        "instrumentalness": 0.572276603525128,
+        "liveness": 1.6110257032428086,
+        "loudness": 0.687981021630116,
+        "speechiness": 0.43469089301147695,
+        "tempo": 3.4068830923879316,
+        "valence": 0.32152708590103507
+      }
+    },
+    {
+      "mean_ndcg_at_k": 9.088684028421673e-05,
+      "mean_recall_at_k": 9.276437847866419e-06,
+      "name": "random_008",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 3.5268054024044044,
+        "danceability": 1.4304138455824842,
+        "duration_ms": 0.895137092777142,
+        "energy": 3.2684762459968257,
+        "instrumentalness": 0.999711175923065,
+        "liveness": 0.8127674322995244,
+        "loudness": 3.4720186559922683,
+        "speechiness": 1.3955693403848455,
+        "tempo": 3.9459865016858378,
+        "valence": 0.8476312127370509
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.0003144168089972574,
+      "mean_recall_at_k": 3.1746031746031745e-05,
+      "name": "random_009",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 2.208616299849725,
+        "danceability": 2.0433203145168513,
+        "duration_ms": 1.886955588924271,
+        "energy": 0.9928796651374417,
+        "instrumentalness": 0.789287823311972,
+        "liveness": 1.9157831730761874,
+        "loudness": 0.34382122953719524,
+        "speechiness": 1.7957313248768774,
+        "tempo": 3.3132308947292635,
+        "valence": 1.0846643288408204
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.0009095415684553483,
+      "mean_recall_at_k": 0.00011165845648604269,
+      "name": "random_010",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 2.740730287491347,
+        "danceability": 3.270918276929538,
+        "duration_ms": 2.44442528635508,
+        "energy": 3.6596476673413654,
+        "instrumentalness": 3.7967898799707642,
+        "liveness": 3.552514944309963,
+        "loudness": 2.9480116442218534,
+        "speechiness": 0.37763281720026054,
+        "tempo": 3.7076761993468903,
+        "valence": 0.26040430778612444
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.0,
+      "mean_recall_at_k": 0.0,
+      "name": "random_011",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 3.2357959615783822,
+        "danceability": 0.9460259710564957,
+        "duration_ms": 1.9026692364493039,
+        "energy": 0.4761512015984461,
+        "instrumentalness": 0.5228688717861918,
+        "liveness": 1.1139910412204739,
+        "loudness": 0.279717582110084,
+        "speechiness": 0.8532327904879308,
+        "tempo": 3.303669265407705,
+        "valence": 2.309406783830849
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.0003700113581083983,
+      "mean_recall_at_k": 6.12011127475045e-05,
+      "name": "random_012",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 0.26133403242866593,
+        "danceability": 1.3731535756602173,
+        "duration_ms": 0.30077572400732083,
+        "energy": 0.27045518483604,
+        "instrumentalness": 2.0445792856144043,
+        "liveness": 1.0360078201608551,
+        "loudness": 2.576243783352205,
+        "speechiness": 3.286192248558947,
+        "tempo": 0.30026952951265823,
+        "valence": 1.8363984141562675
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.00035104475505743764,
+      "mean_recall_at_k": 2.953986236661008e-05,
+      "name": "random_013",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 1.1883232785651145,
+        "danceability": 0.6494272899072449,
+        "duration_ms": 0.5560640708850809,
+        "energy": 0.8242734480230517,
+        "instrumentalness": 0.5124411983356432,
+        "liveness": 0.4885922403000505,
+        "loudness": 0.3531171567084947,
+        "speechiness": 2.933195604652305,
+        "tempo": 0.4676424217512077,
+        "valence": 3.640781910093815
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.0006258688297578637,
+      "mean_recall_at_k": 5.870161892353293e-05,
+      "name": "random_014",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 1.1825521507185663,
+        "danceability": 1.2697040454368484,
+        "duration_ms": 0.6962211972618534,
+        "energy": 1.1618002204278628,
+        "instrumentalness": 0.5562035499294946,
+        "liveness": 0.7854467475269267,
+        "loudness": 3.570956527492833,
+        "speechiness": 2.415771303444817,
+        "tempo": 1.4201328037326164,
+        "valence": 2.3600920073714002
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.0,
+      "mean_recall_at_k": 0.0,
+      "name": "random_015",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 0.3742032912466253,
+        "danceability": 1.1570458557340697,
+        "duration_ms": 2.4953046105093484,
+        "energy": 1.2974660657327395,
+        "instrumentalness": 0.7716622027050302,
+        "liveness": 3.1163037178519244,
+        "loudness": 0.7908829782362501,
+        "speechiness": 0.28170704611671693,
+        "tempo": 2.4466794849554105,
+        "valence": 2.626542325618491
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.00043363097571618933,
+      "mean_recall_at_k": 4.110694820355187e-05,
+      "name": "random_016",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 1.5267441374122646,
+        "danceability": 0.2569960771809559,
+        "duration_ms": 0.29480984461289994,
+        "energy": 0.6878589332022674,
+        "instrumentalness": 0.5341794548275343,
+        "liveness": 1.7539508039715102,
+        "loudness": 2.7493930767194334,
+        "speechiness": 3.4228681201885465,
+        "tempo": 0.3553391144125043,
+        "valence": 0.3108994885923944
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.0008413534834810472,
+      "mean_recall_at_k": 4.6558050856421834e-05,
+      "name": "random_017",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 3.74729430303743,
+        "danceability": 0.7185109424413146,
+        "duration_ms": 1.0301297204798217,
+        "energy": 0.8230752522396234,
+        "instrumentalness": 2.147658714867421,
+        "liveness": 0.5886285611653415,
+        "loudness": 2.878323385574705,
+        "speechiness": 0.5282699099544863,
+        "tempo": 2.7367825619088633,
+        "valence": 0.9695573802001356
+      }
+    },
+    {
+      "mean_ndcg_at_k": 0.0005836227406082794,
+      "mean_recall_at_k": 9.523809523809523e-05,
+      "name": "random_018",
+      "source": "log_uniform_random",
+      "weights": {
+        "acousticness": 0.41490401282798794,
+        "danceability": 0.64940163582439,
+        "duration_ms": 1.9903111843716308,
+        "energy": 3.944026902949481,
+        "instrumentalness": 2.8686908172809353,
+        "liveness": 2.3773290328048184,
+        "loudness": 3.2554529973749506,
+        "speechiness": 1.5927917153953963,
+        "tempo": 3.5643883402682137,
+        "valence": 0.6003077429326744
+      }
+    }
+  ],
+  "weight_semantics": "Each value is a vector multiplier applied to both the query profile and candidate vectors. Its direct influence inside cosine dot products is therefore squared."
+}

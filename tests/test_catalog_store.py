@@ -58,6 +58,27 @@ def test_catalog_store_filters_and_bounds_candidates(tmp_path):
     assert candidates["spotify_id"].tolist() == ["candidate"]
 
 
+def test_catalog_store_loads_tracks_in_requested_order(tmp_path):
+    path = tmp_path / "catalog.parquet"
+    _catalog().to_parquet(path, index=False)
+    store = CatalogStore(path)
+
+    tracks = store.load_tracks(["candidate", "missing", "seed", "candidate"])
+
+    assert tracks["spotify_id"].tolist() == ["candidate", "seed"]
+
+
+def test_catalog_store_counts_all_eligible_candidates_before_limit(tmp_path):
+    path = tmp_path / "catalog.parquet"
+    _catalog().to_parquet(path, index=False)
+    store = CatalogStore(path, candidate_limit=1)
+
+    assert store.count_candidates(min_popularity=20) == 2
+    assert store.count_candidates(exclude_ids=["seed"], min_popularity=20) == 1
+    assert store.count_candidates(exclude_artists=["other artist"]) == 1
+    assert store.count_candidates(year_range=(2021, 2025)) == 1
+
+
 def test_catalog_store_retries_transient_zstd_failure(monkeypatch, tmp_path):
     path = tmp_path / "catalog.parquet"
     path.touch()

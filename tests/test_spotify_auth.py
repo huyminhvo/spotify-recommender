@@ -1,9 +1,10 @@
 import pytest
-from spotipy.cache_handler import MemoryCacheHandler
+from spotipy.cache_handler import CacheFileHandler, MemoryCacheHandler
 from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOAuth
 
 from utils.spotify_auth import (
     SpotifyConfig,
+    create_cached_user_oauth,
     create_oauth_state,
     create_user_oauth,
     decode_oauth_state,
@@ -30,6 +31,26 @@ def test_user_oauth_uses_only_memory_cache_and_expected_scopes():
     assert "playlist-read-private" in oauth.scope
     assert "playlist-modify-private" in oauth.scope
     assert oauth.redirect_uri == "https://example.test/"
+
+
+def test_cached_user_oauth_uses_explicit_file_and_read_only_scope(tmp_path):
+    cache_path = tmp_path / "private" / "spotify-token.json"
+
+    oauth = create_cached_user_oauth(CONFIG, cache_path)
+
+    assert isinstance(oauth, SpotifyOAuth)
+    assert isinstance(oauth.cache_handler, CacheFileHandler)
+    assert oauth.cache_handler.cache_path == str(cache_path.resolve())
+    assert oauth.scope == "playlist-read-private"
+    assert cache_path.parent.is_dir()
+
+
+def test_cached_user_oauth_requires_redirect_uri(tmp_path):
+    with pytest.raises(ValueError, match="SPOTIPY_REDIRECT_URI"):
+        create_cached_user_oauth(
+            SpotifyConfig("client-id", "client-secret"),
+            tmp_path / "token.json",
+        )
 
 
 def test_signed_oauth_state_survives_session_reconnect():

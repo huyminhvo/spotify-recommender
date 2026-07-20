@@ -1,139 +1,225 @@
-from argparse import Namespace
+import json
 
+import numpy as np
 import pandas as pd
+import pytest
 
+from recommender.evaluate import EvaluationConfig, EvaluationResult
 from scripts import evaluate_recommender
 
 
-def _args(**overrides):
-    defaults = {
-        "catalog_csv": None,
-        "playlist_url": [],
-        "playlist_file": None,
-        "raw_catalog_path": None,
-        "output_csv": "unused.csv",
-        "summary_csv": None,
-        "min_matched_tracks": 10,
-        "force_rebuild_catalog": False,
-        "playlist_col": "playlist_id",
+def _result(benchmark_ready=False):
+    summary = pd.DataFrame(
+        [
+            {
+                "strategy": "deployed",
+                "num_playlists": 1,
+                "recall_at_k": 0.1,
+                "recall_at_k_ci_low": 0.1,
+                "recall_at_k_ci_high": 0.1,
+                "ndcg_at_k": 0.08,
+                "ndcg_at_k_ci_low": 0.08,
+                "ndcg_at_k_ci_high": 0.08,
+                "hit_rate_at_k": 0.5,
+                "candidate_recall_ceiling": 0.2,
+                "retrievable_recall_at_k": 0.5,
+                "catalog_coverage": 0.001,
+            }
+        ]
+    )
+    return EvaluationResult(
+        per_split=pd.DataFrame(),
+        recommendations=pd.DataFrame(),
+        summary=summary,
+        skipped=pd.DataFrame(),
+        audit={
+            "benchmark_ready": benchmark_ready,
+            "num_playlists": 1,
+            "num_memberships": 42,
+            "warnings": ["Only one playlist is labeled."],
+        },
+    )
+
+
+def _metadata():
+    return {
+        "catalog": {
+            "artifact": "catalog.parquet",
+            "rows": 1000,
+            "eligible_rows": 500,
+            "candidate_limit": 100,
+        },
+        "labels": {
+            "path": "labels.csv",
+            "sha256": "abc",
+            "schema": "legacy-matched-only",
+            "preserves_unmatched": False,
+            "rows": 42,
+        },
+        "match": {
+            "matched_tracks": 42,
+            "total_source_tracks": 101,
+            "match_rate": 42 / 101,
+        },
     }
-    defaults.update(overrides)
-    return Namespace(**defaults)
 
 
-def test_load_or_build_catalog_reads_prebuilt_csv(tmp_path):
-    csv_path = tmp_path / "eval.csv"
+def test_load_memberships_normalizes_legacy_labels(tmp_path):
+    path = tmp_path / "labels.csv"
     pd.DataFrame(
         [
             {"playlist_id": "p1", "spotify_id": "a"},
             {"playlist_id": "p1", "spotify_id": "b"},
         ]
-    ).to_csv(csv_path, index=False)
+    ).to_csv(path, index=False)
 
-    catalog = evaluate_recommender.load_or_build_catalog(_args(catalog_csv=str(csv_path)))
+    labels, metadata = evaluate_recommender.load_memberships(path)
 
-    assert catalog["spotify_id"].tolist() == ["a", "b"]
-
-
-def test_load_or_build_catalog_uses_default_output_csv_when_no_args(monkeypatch, tmp_path):
-    output_csv = tmp_path / "real_playlist_eval.csv"
-    pd.DataFrame([{"playlist_id": "p1", "spotify_id": "a"}]).to_csv(output_csv, index=False)
-    monkeypatch.setattr(evaluate_recommender, "DEFAULT_PLAYLIST_FILE", tmp_path / "missing.txt")
-
-    catalog = evaluate_recommender.load_or_build_catalog(_args(output_csv=str(output_csv)))
-
-    assert catalog["spotify_id"].tolist() == ["a"]
+    assert labels["catalog_spotify_id"].tolist() == ["a", "b"]
+    assert labels["source_spotify_id"].tolist() == ["a", "b"]
+    assert metadata["schema"] == "legacy-matched-only"
+    assert metadata["preserves_unmatched"] is False
 
 
-def test_load_or_build_catalog_uses_default_playlist_file_when_no_cache(monkeypatch, tmp_path):
-    default_playlist_file = tmp_path / "playlists.txt"
-    default_playlist_file.write_text("spotify:playlist:p1\n", encoding="utf-8")
-    output_csv = tmp_path / "built.csv"
-    built_dataset = pd.DataFrame([{"playlist_id": "p1", "spotify_id": "a"}])
-
-    monkeypatch.setattr(evaluate_recommender, "DEFAULT_PLAYLIST_FILE", default_playlist_file)
-    monkeypatch.setattr(
-        evaluate_recommender, "get_merged_dataset", lambda paths, force_rebuild: pd.DataFrame()
-    )
-    monkeypatch.setattr(evaluate_recommender, "count_raw_catalog_rows", lambda paths: 0)
-    monkeypatch.setattr(evaluate_recommender, "get_spotify_client", lambda: object())
+def test_default_membership_path_returns_none_when_no_local_labels(
+    monkeypatch,
+    tmp_path,
+):
     monkeypatch.setattr(
         evaluate_recommender,
-        "build_evaluation_dataset",
-        lambda sp, catalog_df, playlist_inputs, min_matched_tracks, raw_catalog_rows: (
-            built_dataset,
-            pd.DataFrame(),
-        ),
+        "DEFAULT_MEMBERSHIP_CSV",
+        tmp_path / "missing-modern.csv",
     )
-
-    catalog = evaluate_recommender.load_or_build_catalog(_args(output_csv=str(output_csv)))
-
-    assert catalog["spotify_id"].tolist() == ["a"]
-    assert pd.read_csv(output_csv)["spotify_id"].tolist() == ["a"]
-
-
-def test_load_or_build_catalog_builds_from_playlist_inputs(monkeypatch, tmp_path):
-    output_csv = tmp_path / "built.csv"
-    summary_csv = tmp_path / "summary.csv"
-    raw_catalog = pd.DataFrame([{"spotify_id": "raw"}])
-    built_dataset = pd.DataFrame(
-        [
-            {"playlist_id": "p1", "spotify_id": "a"},
-            {"playlist_id": "p1", "spotify_id": "b"},
-        ]
-    )
-    summary = pd.DataFrame([{"playlist_id": "p1", "matched_tracks": 2, "included": True}])
-
-    monkeypatch.setattr(
-        evaluate_recommender, "get_merged_dataset", lambda paths, force_rebuild: raw_catalog
-    )
-    monkeypatch.setattr(evaluate_recommender, "count_raw_catalog_rows", lambda paths: 1)
-    monkeypatch.setattr(evaluate_recommender, "get_spotify_client", lambda: object())
     monkeypatch.setattr(
         evaluate_recommender,
-        "build_evaluation_dataset",
-        lambda sp, catalog_df, playlist_inputs, min_matched_tracks, raw_catalog_rows: (
-            built_dataset,
-            summary,
+        "LEGACY_EVAL_CSV",
+        tmp_path / "missing-legacy.csv",
+    )
+
+    assert evaluate_recommender.default_membership_path() is None
+
+
+def test_filter_memberships_uses_playlist_level_partition():
+    labels = pd.DataFrame(
+        {
+            "playlist_id": ["p1", "p1", "p2"],
+            "catalog_spotify_id": ["a", "b", "c"],
+        }
+    )
+
+    filtered = evaluate_recommender.filter_memberships(labels, {"p2"})
+
+    assert filtered["playlist_id"].tolist() == ["p2"]
+    with pytest.raises(ValueError, match="not found"):
+        evaluate_recommender.filter_memberships(labels, {"missing"})
+
+
+def test_load_playlist_id_filter_reads_tuning_artifact(tmp_path):
+    path = tmp_path / "tuning.json"
+    path.write_text(
+        json.dumps(
+            {
+                "partition": {
+                    "tuning_playlist_ids": ["p1"],
+                    "test_playlist_ids": ["p2", "p3"],
+                }
+            }
         ),
+        encoding="utf-8",
     )
 
-    catalog = evaluate_recommender.load_or_build_catalog(
-        _args(
-            playlist_url=["spotify:playlist:p1"],
-            output_csv=str(output_csv),
-            summary_csv=str(summary_csv),
-            min_matched_tracks=2,
-        )
-    )
-
-    assert catalog["spotify_id"].tolist() == ["a", "b"]
-    assert pd.read_csv(output_csv)["spotify_id"].tolist() == ["a", "b"]
-    assert pd.read_csv(summary_csv)["matched_tracks"].tolist() == [2]
+    assert evaluate_recommender.load_playlist_id_filter(path) == {"p2", "p3"}
 
 
-def test_load_or_build_catalog_renames_built_playlist_column(monkeypatch, tmp_path):
-    monkeypatch.setattr(
-        evaluate_recommender, "get_merged_dataset", lambda paths, force_rebuild: pd.DataFrame()
-    )
-    monkeypatch.setattr(evaluate_recommender, "count_raw_catalog_rows", lambda paths: 0)
-    monkeypatch.setattr(evaluate_recommender, "get_spotify_client", lambda: object())
-    monkeypatch.setattr(
-        evaluate_recommender,
-        "build_evaluation_dataset",
-        lambda sp, catalog_df, playlist_inputs, min_matched_tracks, raw_catalog_rows: (
-            pd.DataFrame([{"playlist_id": "p1", "spotify_id": "a"}]),
-            pd.DataFrame(),
+def test_tuning_artifact_adds_selected_weight_strategies(tmp_path):
+    path = tmp_path / "tuning.json"
+    path.write_text(
+        json.dumps(
+            {
+                "selected_weights": {
+                    "danceability": 1.1,
+                    "energy": 1.2,
+                }
+            }
         ),
+        encoding="utf-8",
     )
 
-    catalog = evaluate_recommender.load_or_build_catalog(
-        _args(
-            playlist_url=["spotify:playlist:p1"],
-            output_csv=str(tmp_path / "built.csv"),
-            playlist_col="source_playlist",
-        )
+    weights = evaluate_recommender.load_selected_weights(path)
+    strategies = evaluate_recommender.strategies_with_selected_weights(weights)
+
+    assert strategies[-2].name == "tuned_weighted_cosine_pca"
+    assert strategies[-1].name == "tuned_deployed"
+    assert strategies[-1].policy.user_weights["energy"] == 1.2
+
+
+def test_render_report_labels_small_legacy_run_as_smoke_test():
+    metadata = _metadata()
+
+    report = evaluate_recommender.render_report(
+        _result(),
+        config=EvaluationConfig(num_splits=2, bootstrap_samples=50),
+        catalog_metadata=metadata["catalog"],
+        label_metadata=metadata["labels"],
+        match_summary=metadata["match"],
+        strategies=evaluate_recommender.DEFAULT_STRATEGIES,
     )
 
-    assert "source_playlist" in catalog.columns
-    assert "playlist_id" not in catalog.columns
+    assert "Engineering smoke test" in report
+    assert "legacy matched-only label file" in report
+    assert "42/101 tracks" in report
+    assert "| deployed | 0.100 |" in report
+    assert "playlist-clustered bootstrap" in report
+
+
+def test_update_readme_replaces_only_generated_section(tmp_path):
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "\n".join(
+            [
+                "# Project",
+                evaluate_recommender.README_RESULTS_START,
+                "old table",
+                evaluate_recommender.README_RESULTS_END,
+                "Keep me.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    evaluate_recommender.update_readme_results(
+        readme,
+        summary=_result().summary,
+        top_k=10,
+        report_path=tmp_path / "evaluation.md",
+        benchmark_ready=False,
+        num_playlists=1,
+    )
+
+    text = readme.read_text(encoding="utf-8")
+    assert "Smoke test over 1 playlist" in text
+    assert "| deployed | 0.100 | 0.080 |" in text
+    assert "Keep me." in text
+    assert text.count(evaluate_recommender.README_RESULTS_START) == 1
+
+
+def test_results_json_replaces_non_finite_values(tmp_path):
+    result = _result()
+    result.summary.loc[0, "catalog_coverage"] = np.nan
+    metadata = _metadata()
+    payload = evaluate_recommender.build_results_payload(
+        result,
+        config=EvaluationConfig(bootstrap_samples=50),
+        catalog_metadata=metadata["catalog"],
+        label_metadata=metadata["labels"],
+        match_summary=metadata["match"],
+        strategies=evaluate_recommender.DEFAULT_STRATEGIES,
+    )
+    path = evaluate_recommender.write_results_json(
+        payload,
+        tmp_path / "results.json",
+    )
+
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    assert loaded["summary"][0]["catalog_coverage"] is None
+    assert loaded["status"] == "engineering-smoke-test"

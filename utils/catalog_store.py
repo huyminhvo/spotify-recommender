@@ -37,7 +37,13 @@ class CatalogStore:
         if not self.path.exists():
             raise FileNotFoundError(self.path)
         configured_limit = os.getenv("CATALOG_CANDIDATE_LIMIT")
-        self.candidate_limit = candidate_limit or int(configured_limit or DEFAULT_CANDIDATE_LIMIT)
+        self.candidate_limit = (
+            candidate_limit
+            if candidate_limit is not None
+            else int(configured_limit or DEFAULT_CANDIDATE_LIMIT)
+        )
+        if self.candidate_limit < 1:
+            raise ValueError("candidate_limit must be at least 1.")
 
     @staticmethod
     def _connect():
@@ -103,23 +109,37 @@ class CatalogStore:
         )
         return None if matched.empty else matched.iloc[0].to_dict()
 
-    def load_candidates(
-        self,
+    @staticmethod
+    def _optimize_dtypes(tracks: pd.DataFrame) -> pd.DataFrame:
+        tracks = tracks.copy()
+        for column in FLOAT32_COLUMNS:
+            if column in tracks:
+                tracks[column] = pd.to_numeric(tracks[column], errors="coerce", downcast="float")
+        if "duration_ms" in tracks:
+            tracks["duration_ms"] = pd.to_numeric(
+                tracks["duration_ms"], errors="coerce", downcast="integer"
+            )
+        return tracks
+
+    @staticmethod
+    def _candidate_filters(
         exclude_ids: Optional[Iterable[str]] = None,
         exclude_artists: Optional[Iterable[str]] = None,
         min_popularity: Optional[int] = None,
         max_popularity: Optional[int] = None,
         year_range: Optional[Tuple[int, int]] = None,
-    ) -> pd.DataFrame:
+    ) -> tuple[list[str], list]:
         clauses: list[str] = []
-        parameters: list = [str(self.path)]
+        parameters: list = []
 
-        ids = [value for value in (exclude_ids or []) if value]
+        id_values = exclude_ids if exclude_ids is not None else ()
+        ids = list(dict.fromkeys(value for value in id_values if value))
         if ids:
             clauses.append(f"spotify_id NOT IN ({', '.join('?' for _ in ids)})")
             parameters.extend(ids)
 
-        artists = [value for value in (exclude_artists or []) if value]
+        artist_values = exclude_artists if exclude_artists is not None else ()
+        artists = list(dict.fromkeys(value for value in artist_values if value))
         if artists:
             clauses.append(f"artist_primary_canon NOT IN ({', '.join('?' for _ in artists)})")
             parameters.extend(artists)
@@ -134,7 +154,74 @@ class CatalogStore:
             clauses.append("release_year BETWEEN ? AND ?")
             parameters.extend(year_range)
 
+        return clauses, parameters
+
+    def load_tracks(self, spotify_ids: Iterable[str]) -> pd.DataFrame:
+        """Load unique catalog rows by Spotify ID, preserving requested ID order."""
+        ids = list(dict.fromkeys(value for value in spotify_ids if value))
+        if not ids:
+            empty = self._query("SELECT * FROM read_parquet(?) LIMIT 0", [str(self.path)])
+            return self._optimize_dtypes(empty)
+
+        tracks = self._query(
+            f"""
+            SELECT * FROM read_parquet(?)
+            WHERE spotify_id IN ({", ".join("?" for _ in ids)})
+            """,
+            [str(self.path), *ids],
+        )
+        if tracks.empty:
+            return tracks
+
+        requested_order = {spotify_id: index for index, spotify_id in enumerate(ids)}
+        tracks["_requested_order"] = tracks["spotify_id"].map(requested_order)
+        tracks = tracks.sort_values("_requested_order").drop(columns="_requested_order")
+        return self._optimize_dtypes(tracks).reset_index(drop=True)
+
+    def count_candidates(
+        self,
+        exclude_ids: Optional[Iterable[str]] = None,
+        exclude_artists: Optional[Iterable[str]] = None,
+        min_popularity: Optional[int] = None,
+        max_popularity: Optional[int] = None,
+        year_range: Optional[Tuple[int, int]] = None,
+    ) -> int:
+        """Count all eligible candidates before applying the configured sample limit."""
+        clauses, filter_parameters = self._candidate_filters(
+            exclude_ids=exclude_ids,
+            exclude_artists=exclude_artists,
+            min_popularity=min_popularity,
+            max_popularity=max_popularity,
+            year_range=year_range,
+        )
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        result = self._query(
+            f"""
+            SELECT count(*) AS candidate_count
+            FROM read_parquet(?)
+            {where}
+            """,
+            [str(self.path), *filter_parameters],
+        )
+        return int(result.iloc[0]["candidate_count"])
+
+    def load_candidates(
+        self,
+        exclude_ids: Optional[Iterable[str]] = None,
+        exclude_artists: Optional[Iterable[str]] = None,
+        min_popularity: Optional[int] = None,
+        max_popularity: Optional[int] = None,
+        year_range: Optional[Tuple[int, int]] = None,
+    ) -> pd.DataFrame:
+        clauses, filter_parameters = self._candidate_filters(
+            exclude_ids=exclude_ids,
+            exclude_artists=exclude_artists,
+            min_popularity=min_popularity,
+            max_popularity=max_popularity,
+            year_range=year_range,
+        )
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        parameters = [str(self.path), *filter_parameters]
         parameters.append(self.candidate_limit)
         candidates = self._query(
             f"""
@@ -145,13 +232,4 @@ class CatalogStore:
             """,
             parameters,
         )
-        for column in FLOAT32_COLUMNS:
-            if column in candidates:
-                candidates[column] = pd.to_numeric(
-                    candidates[column], errors="coerce", downcast="float"
-                )
-        if "duration_ms" in candidates:
-            candidates["duration_ms"] = pd.to_numeric(
-                candidates["duration_ms"], errors="coerce", downcast="integer"
-            )
-        return candidates
+        return self._optimize_dtypes(candidates)

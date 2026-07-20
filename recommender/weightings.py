@@ -2,6 +2,10 @@ from typing import Dict, Sequence
 
 import numpy as np
 
+# Hand-set vector multipliers used by the deployed policy. They have not yet
+# been selected on a locked playlist-level tuning/test benchmark. Because the
+# multipliers are applied to both the profile and candidate vectors, their
+# effective contribution inside cosine similarity is squared.
 DEFAULT_WEIGHTS = {
     "danceability": 1.5,
     "energy": 2.0,

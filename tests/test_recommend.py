@@ -1,6 +1,11 @@
 import pandas as pd
 
-from recommender.recommend import recommend, recommend_from_catalog
+from recommender.recommend import (
+    prepare_recommendation_candidates,
+    recommend,
+    recommend_from_catalog,
+    recommend_from_prepared_candidates,
+)
 
 
 def _track(spotify_id, danceability, energy, popularity=80, release_year=2020):
@@ -256,3 +261,62 @@ def test_randomized_results_vary_but_stay_in_the_top_candidate_pool():
     assert first["spotify_id"].tolist() != second["spotify_id"].tolist()
     assert set(first["spotify_id"]) <= set(deterministic_top_pool["spotify_id"])
     assert first["score"].is_monotonic_decreasing
+
+
+def test_prepared_candidates_can_be_reused_across_strategies():
+    catalog = pd.DataFrame(
+        [
+            _track("seed", 0.5, 0.5, popularity=10),
+            _track("close", 0.51, 0.51, popularity=40),
+            _track("popular", 0.2, 0.2, popularity=99),
+            _track("far", 0.9, 0.9, popularity=30),
+        ]
+    )
+    user_tracks = catalog[catalog["spotify_id"] == "seed"].copy()
+
+    prepared = prepare_recommendation_candidates(
+        catalog,
+        user_tracks,
+        top_n=2,
+        min_popularity=None,
+    )
+    cosine_recs = recommend_from_prepared_candidates(
+        prepared,
+        user_tracks,
+        top_n=2,
+        use_pca=False,
+        strategy="unweighted_cosine",
+    )
+    popularity_recs = recommend_from_prepared_candidates(
+        prepared,
+        user_tracks,
+        top_n=2,
+        strategy="popularity",
+    )
+
+    assert prepared.candidate_pool_size == 3
+    assert "score" not in prepared.candidates
+    assert cosine_recs.attrs["candidate_pool_size"] == 3
+    assert popularity_recs.attrs["candidate_pool_size"] == 3
+    assert popularity_recs["spotify_id"].tolist() == ["popular", "close"]
+
+
+def test_recommend_from_catalog_exposes_candidate_pool_metadata():
+    catalog = pd.DataFrame(
+        [
+            _track("seed", 0.5, 0.5),
+            _track("candidate", 0.6, 0.6),
+        ]
+    )
+    user_tracks = catalog[catalog["spotify_id"] == "seed"].copy()
+
+    recs = recommend_from_catalog(
+        catalog,
+        user_tracks,
+        top_n=1,
+        min_popularity=20,
+        use_pca=False,
+    )
+
+    assert recs.attrs["candidate_pool_size"] == 1
+    assert recs.attrs["candidate_min_popularity"] == 20

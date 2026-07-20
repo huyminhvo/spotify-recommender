@@ -8,15 +8,18 @@ import os
 import secrets
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Mapping
 
 import spotipy
 from dotenv import load_dotenv
-from spotipy.cache_handler import MemoryCacheHandler
+from spotipy.cache_handler import CacheFileHandler, MemoryCacheHandler
 from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOAuth
 
 USER_PLAYLIST_SCOPE = "playlist-read-private playlist-modify-public playlist-modify-private"
+EVALUATION_PLAYLIST_SCOPE = "playlist-read-private"
 OAUTH_STATE_MAX_AGE_SECONDS = 10 * 60
+DEFAULT_EVALUATION_TOKEN_CACHE = Path(".spotify_cache") / "evaluation-token.json"
 
 
 @dataclass(frozen=True)
@@ -140,6 +143,48 @@ def get_user_spotify_client(
 ) -> tuple[spotipy.Spotify, MemoryCacheHandler]:
     oauth, cache_handler = create_user_oauth(config, token_info)
     return spotipy.Spotify(auth_manager=oauth), cache_handler
+
+
+def create_cached_user_oauth(
+    config: SpotifyConfig,
+    cache_path: str | Path = DEFAULT_EVALUATION_TOKEN_CACHE,
+    scope: str = EVALUATION_PLAYLIST_SCOPE,
+) -> SpotifyOAuth:
+    """Create OAuth backed by a local, gitignored token cache.
+
+    This is intended for command-line development tools, not the multi-user web app.
+    SpotifyOAuth refreshes expired access tokens when the cached token contains a
+    refresh token.
+    """
+    if not config.redirect_uri:
+        raise ValueError("SPOTIPY_REDIRECT_URI must be configured for Spotify authorization.")
+
+    path = Path(cache_path).expanduser().resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cache_handler = CacheFileHandler(cache_path=str(path))
+    return SpotifyOAuth(
+        scope=scope,
+        client_id=config.client_id,
+        client_secret=config.client_secret,
+        redirect_uri=config.redirect_uri,
+        cache_handler=cache_handler,
+        open_browser=False,
+    )
+
+
+def get_cached_user_spotify_client(
+    config: SpotifyConfig | None = None,
+    cache_path: str | Path = DEFAULT_EVALUATION_TOKEN_CACHE,
+) -> spotipy.Spotify:
+    """Return a user client, refreshing a valid cached token when necessary."""
+    oauth = create_cached_user_oauth(config or get_spotify_config(), cache_path)
+    token_info = oauth.validate_token(oauth.cache_handler.get_cached_token())
+    if not token_info:
+        raise ValueError(
+            "No valid cached Spotify user authorization. Run "
+            "`python scripts/authorize_spotify.py` first."
+        )
+    return spotipy.Spotify(auth_manager=oauth)
 
 
 # Backwards-compatible name for callers that only need public catalog access.

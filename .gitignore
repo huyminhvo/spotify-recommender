@@ -24,5 +24,6 @@ data/processed/
 .cache/
 .spotify_cache
 .spotify_cache*
+.spotify_cache/
 .env
 .env.*

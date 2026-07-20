@@ -102,45 +102,116 @@ the artifact itself (not an LFS pointer) in the checkout. Raw inputs and
 
 
 ## Recommendation and Evaluation
-The main recommender builds a median taste profile from seed tracks, scales audio
-features with catalog-fitted preprocessing, and ranks candidate tracks with cosine
-similarity. The recommendation module also includes comparison baselines:
 
-- `random`: random eligible candidates
-- `popularity`: most popular eligible candidates
-- `unweighted_cosine`: cosine similarity without feature weights
-- `weighted_cosine`: cosine similarity with tuned audio-feature weights
+The recommender builds a median taste profile from seed tracks, applies
+catalog-fitted preprocessing, and ranks a bounded deployment-catalog sample. The
+deployed policy is centralized in `recommender/policy.py`: weighted cosine,
+PCA(5), minimum popularity 20, a deterministic 100,000-track catalog sample,
+and relevance-weighted random selection from the top candidate pool. The
+feature multipliers are hand-set defaults, not claimed as benchmark-tuned.
 
-Same-artist exclusion can be enabled to force discovery outside the seed artists.
-Optional UI controls rerank cosine-similar candidates toward adjusted audio-feature
-targets while keeping neutral slider settings identical to the base ranking.
+The offline evaluator now keeps the item catalog and playlist membership labels
+separate. It uses every non-seed playlist item as a positive, preserves
+unmatched items when labels are built with the current schema, repeats splits,
+and computes playlist-clustered bootstrap confidence intervals. It compares:
 
-To compare strategies on a playlist-labeled CSV, run:
+- random and popularity baselines;
+- unweighted and weighted cosine without PCA;
+- weighted cosine with PCA;
+- the exact first-request deployed policy, with fixed random seeds for reproducibility;
+- a fixed steering intervention, including target-distance diagnostics.
+
+Catalog coverage is aggregated across all requests as distinct recommended
+items divided by the eligible catalog, rather than `top_k / catalog_size`.
+Reports also show the retrieval ceiling imposed by catalog matching,
+popularity filtering, and the bounded candidate sample.
+
+### Current result
+
+<!-- evaluation-results:start -->
+
+Smoke test over 9 playlists; do not treat as a quality claim.
+
+| Strategy | Recall@10 | NDCG@10 | Hit rate | Catalog coverage |
+|---|---:|---:|---:|---:|
+| weighted_cosine_pca | 0.000 | 0.001 | 1.11% | 0.3503% |
+| weighted_cosine | 0.000 | 0.001 | 1.67% | 0.3421% |
+| unweighted_cosine | 0.000 | 0.001 | 1.11% | 0.3387% |
+| deployed | 0.000 | 0.001 | 0.56% | 0.3577% |
+| tuned_deployed | 0.000 | 0.001 | 0.56% | 0.3600% |
+| tuned_weighted_cosine_pca | 0.000 | 0.001 | 0.56% | 0.3545% |
+| weighted_cosine_pca_steered | 0.000 | 0.000 | 0.56% | 0.3324% |
+| popularity | 0.000 | 0.000 | 0.00% | 0.0021% |
+| random | 0.000 | 0.000 | 0.00% | 0.3760% |
+
+[Full methodology and confidence intervals](reports/evaluation.md)
+
+<!-- evaluation-results:end -->
+
+The committed report is an engineering smoke test until the label set contains
+at least 50–100 diverse playlists. Playlist count alone is not enough: inspect
+match rate, track-set overlap, playlist length, and feature/era distributions
+before making recommendation-quality claims.
+
+### Build membership labels
+
+Use playlists the authorized Spotify account owns or collaborates on. First,
+authorize once in your browser; the helper stores a refreshable token in the
+gitignored `.spotify_cache/` directory:
 
 ```bash
-python scripts/evaluate_recommender.py --catalog-csv path/to/playlists.csv --playlist-col playlist_id --top-k 10 --seed-size 5 --holdout-size 5
+python scripts/authorize_spotify.py
 ```
 
-To evaluate real Spotify playlists with defaults, add playlist URLs to
-`data/examples/playlists.txt`, then run:
+After approval, copy the complete redirected URL from the browser address bar
+back into the terminal. Then run the builder; expired access tokens are
+refreshed automatically:
 
 ```bash
-python scripts/evaluate_recommender.py
+python scripts/build_evaluation_dataset.py \
+  --playlist-file data/local/playlist_ids.txt \
+  --output-csv data/local/playlist_membership.csv \
+  --summary-csv data/local/playlist_match_summary.csv
 ```
 
-By default, the script builds `data/examples/real_playlist_eval.csv` from
-`data/examples/playlists.txt` if needed. On later runs, it reuses that saved CSV.
-For custom runs, pass explicit options:
+The label-only output contains playlist/source IDs, the matched catalog ID,
+position, and match status; it does not double as a retrieval catalog.
+
+### Run the benchmark
 
 ```bash
-python scripts/evaluate_recommender.py --catalog-csv data/examples/real_playlist_eval.csv --playlist-col playlist_id --top-k 10 --seed-size 5 --holdout-size 5
+python scripts/evaluate_recommender.py \
+  --labels-csv data/local/playlist_membership.csv \
+  --match-summary-csv data/local/playlist_match_summary.csv \
+  --splits 20 \
+  --bootstrap-samples 2000 \
+  --update-readme
 ```
 
-The evaluator performs a seed/holdout split per playlist and reports
-ranking metrics (`precision_at_k`, `recall_at_k`, `hit_rate_at_k`, `ndcg_at_k`),
-recommendation diagnostics (`coverage_rate`, `avg_similarity`, `artist_diversity`,
-`artist_duplication_rate`, average recommendation popularity), and build-quality
-metrics (`match_rate`, raw/merged catalog size, duplicate reduction rate).
+This writes [the Markdown report](reports/evaluation.md) and a machine-readable
+`reports/evaluation_results.json`. Raw split and recommendation CSVs are
+optional CLI outputs and remain local by default.
+
+### Tune feature weights without test leakage
+
+Weight search partitions whole playlists, evaluates candidates only on the
+tuning partition, and records untouched test playlist IDs:
+
+```bash
+python scripts/tune_recommender_weights.py \
+  --memberships-csv data/local/playlist_membership.csv \
+  --trials 20 \
+  --output-json reports/weight_tuning.json
+
+python scripts/evaluate_recommender.py \
+  --labels-csv data/local/playlist_membership.csv \
+  --playlist-id-file reports/weight_tuning.json \
+  --weights-json reports/weight_tuning.json
+```
+
+Weights are vector multipliers applied to both the profile and candidate
+vectors, so their direct contribution inside cosine similarity is squared. The
+held-out test results must not be used to revise the selected weights.
 
 
 ## Roadmap

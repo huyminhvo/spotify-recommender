@@ -132,6 +132,40 @@ def test_get_recommendations_orchestrates_services(monkeypatch):
     assert public_sp.track_ids == ["rec"]
 
 
+def test_generate_recommendations_uses_the_deployed_policy(monkeypatch):
+    calls = {}
+    catalog = object()
+    bundle = services.CatalogBundle(paths=["catalog.parquet"], catalog=catalog)
+    user_tracks = pd.DataFrame({"spotify_id": ["seed"]})
+
+    def fake_recommend_from_catalog(**kwargs):
+        calls.update(kwargs)
+        return pd.DataFrame()
+
+    monkeypatch.setattr(services, "recommend_from_catalog", fake_recommend_from_catalog)
+
+    services.generate_recommendations(
+        bundle,
+        user_tracks,
+        top_n=7,
+        adjustments={"energy": 0.2},
+        exclude_spotify_ids=["seen"],
+    )
+
+    assert calls["catalog"] is catalog
+    assert calls["user_tracks_df"] is user_tracks
+    assert calls["top_n"] == 7
+    assert calls["strategy"] == "weighted_cosine"
+    assert calls["min_popularity"] == 20
+    assert calls["use_pca"] is True
+    assert calls["pca_components"] == 5
+    assert calls["same_artist_exclusion"] is False
+    assert calls["randomize_results"] is True
+    assert calls["random_state"] is None
+    assert calls["adjustments"] == {"energy": 0.2}
+    assert calls["exclude_spotify_ids"] == ["seen"]
+
+
 def test_get_recommendations_uses_injected_catalog_bundle(monkeypatch):
     sp = FakeSpotify()
     bundle = services.CatalogBundle(paths=["catalog.parquet"], catalog=pd.DataFrame())

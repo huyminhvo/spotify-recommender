@@ -13,8 +13,8 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
+from recommender.policy import DEPLOYED_POLICY
 from recommender.recommend import recommend_from_catalog
-from recommender.weightings import DEFAULT_WEIGHTS
 from utils.catalog_store import CatalogStore
 from utils.merge_datasets import _fingerprint_inputs, get_merged_dataset
 from utils.spotify_auth import get_public_spotify_client
@@ -160,11 +160,9 @@ def generate_recommendations(
         catalog=bundle.catalog,
         user_tracks_df=user_tracks_df,
         top_n=top_n,
-        user_weights=DEFAULT_WEIGHTS,
         adjustments=adjustments,
-        randomize_results=True,
-        random_state=None,
         exclude_spotify_ids=exclude_spotify_ids,
+        **DEPLOYED_POLICY.recommendation_kwargs(),
     )
 
 
