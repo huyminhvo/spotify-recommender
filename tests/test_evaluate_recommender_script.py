@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from recommender.evaluate import EvaluationConfig, EvaluationResult
-from scripts import evaluate_recommender
+from scripts import build_evaluation_dataset, evaluate_recommender
 
 
 def _result(benchmark_ready=False):
@@ -92,11 +92,25 @@ def test_default_membership_path_returns_none_when_no_local_labels(
     )
     monkeypatch.setattr(
         evaluate_recommender,
+        "EXAMPLE_MEMBERSHIP_CSV",
+        tmp_path / "missing-example.csv",
+    )
+    monkeypatch.setattr(
+        evaluate_recommender,
         "LEGACY_EVAL_CSV",
         tmp_path / "missing-legacy.csv",
     )
 
     assert evaluate_recommender.default_membership_path() is None
+
+
+def test_builder_and_evaluator_share_default_artifact_paths():
+    assert evaluate_recommender.DEFAULT_MEMBERSHIP_CSV == (
+        build_evaluation_dataset.DEFAULT_OUTPUT_CSV
+    )
+    assert evaluate_recommender.DEFAULT_MATCH_SUMMARY_CSV == (
+        build_evaluation_dataset.DEFAULT_SUMMARY_CSV
+    )
 
 
 def test_filter_memberships_uses_playlist_level_partition():
@@ -112,6 +126,32 @@ def test_filter_memberships_uses_playlist_level_partition():
     assert filtered["playlist_id"].tolist() == ["p2"]
     with pytest.raises(ValueError, match="not found"):
         evaluate_recommender.filter_memberships(labels, {"missing"})
+
+
+def test_load_match_summary_uses_only_selected_playlists(tmp_path):
+    path = tmp_path / "summary.csv"
+    pd.DataFrame(
+        [
+            {
+                "playlist_id": "p1",
+                "total_unique_source_tracks": 10,
+                "matched_unique_tracks": 8,
+            },
+            {
+                "playlist_id": "p2",
+                "total_unique_source_tracks": 20,
+                "matched_unique_tracks": 5,
+            },
+        ]
+    ).to_csv(path, index=False)
+
+    summary = evaluate_recommender.load_match_summary(path, {"p2"})
+
+    assert summary["num_playlists"] == 1
+    assert summary["total_source_tracks"] == 20
+    assert summary["matched_tracks"] == 5
+    assert summary["match_rate"] == 0.25
+    assert summary["sha256"] == evaluate_recommender.sha256_file(path)
 
 
 def test_load_playlist_id_filter_reads_tuning_artifact(tmp_path):
@@ -223,3 +263,27 @@ def test_results_json_replaces_non_finite_values(tmp_path):
     loaded = json.loads(path.read_text(encoding="utf-8"))
     assert loaded["summary"][0]["catalog_coverage"] is None
     assert loaded["status"] == "engineering-smoke-test"
+
+
+def test_results_payload_records_partition_and_weight_artifacts():
+    metadata = _metadata()
+    artifacts = {
+        "playlist_filter": {
+            "path": "partition.json",
+            "sha256": "partition-hash",
+            "selected_playlist_ids": ["p2"],
+        },
+        "weights": {"path": "weights.json", "sha256": "weights-hash"},
+    }
+
+    payload = evaluate_recommender.build_results_payload(
+        _result(),
+        config=EvaluationConfig(bootstrap_samples=50),
+        catalog_metadata=metadata["catalog"],
+        label_metadata=metadata["labels"],
+        match_summary=metadata["match"],
+        strategies=evaluate_recommender.DEFAULT_STRATEGIES,
+        input_artifacts=artifacts,
+    )
+
+    assert payload["input_artifacts"] == artifacts

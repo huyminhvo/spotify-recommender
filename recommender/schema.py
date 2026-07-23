@@ -1,7 +1,7 @@
-from typing import List
+"""Canonical audio-feature schema and preprocessing bounds."""
 
 # List of numerical features for modeling
-FEATURE_COLS: List[str] = [
+FEATURE_COLS: list[str] = [
     "danceability",
     "energy",
     "valence",
@@ -13,14 +13,6 @@ FEATURE_COLS: List[str] = [
     "loudness",
     "duration_ms",  # prefer ms; preprocess handles 'duration' fallback
 ]
-
-# columns that may need special transforms
-# - tempo: light log1p compression (skewed, positive)
-# - duration_ms: convert to minutes then log1p (broad range, skewed)
-SPECIAL_COLS = {
-    "tempo": "log1p",  # assumes tempo >= 0
-    "duration_ms": "log1p_min",  # convert ms -> minutes, then log1p
-}
 
 # reasonable numeric bounds for sanity clipping (very mild; optional)
 # keep these wide to avoid distorting data but remove obvious outliers.

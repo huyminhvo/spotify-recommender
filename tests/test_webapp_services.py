@@ -61,8 +61,8 @@ def test_fetch_album_art_urls_handles_missing_tracks_and_images():
     ]
 
 
-def test_recommendation_track_uris_drop_missing_ids():
-    recs = pd.DataFrame({"spotify_id": ["a", None, "b"]})
+def test_recommendation_track_uris_drop_missing_and_blank_ids():
+    recs = pd.DataFrame({"spotify_id": ["a", None, " ", "b"]})
 
     assert services.recommendation_track_uris(recs) == ["spotify:track:a", "spotify:track:b"]
 
@@ -77,8 +77,7 @@ def test_add_recommendations_to_spotify_rejects_empty_recommendations():
 def test_add_recommendations_to_spotify_creates_playlist(monkeypatch):
     calls = {}
 
-    def fake_create_playlist(sp, user_id, track_uris, name):
-        calls["user_id"] = user_id
+    def fake_create_playlist(sp, track_uris, name):
         calls["track_uris"] = track_uris
         calls["name"] = name
         return "https://spotify.test/playlist"
@@ -93,7 +92,6 @@ def test_add_recommendations_to_spotify_creates_playlist(monkeypatch):
 
     assert url == "https://spotify.test/playlist"
     assert calls == {
-        "user_id": "user-id",
         "track_uris": ["spotify:track:a", "spotify:track:b"],
         "name": "Test Playlist",
     }
@@ -198,6 +196,28 @@ def test_get_recommendations_requires_user_authorization():
         services.get_recommendations("spotify:playlist:test")
 
 
+def test_get_recommendations_classifies_candidate_catalog_failures(monkeypatch):
+    bundle = services.CatalogBundle(paths=["catalog.parquet"], catalog=pd.DataFrame())
+    monkeypatch.setattr(
+        services,
+        "match_playlist_tracks",
+        lambda sp, playlist_url, bundle_arg: pd.DataFrame({"spotify_id": ["seed"]}),
+    )
+
+    def raise_catalog_failure(*args, **kwargs):
+        raise services.CatalogQueryError("candidate query failed")
+
+    monkeypatch.setattr(services, "generate_recommendations", raise_catalog_failure)
+
+    with pytest.raises(errors.CatalogReadError, match="candidate query failed"):
+        services.get_recommendations(
+            "spotify:playlist:test",
+            sp=FakeSpotify(),
+            public_sp=FakeSpotify(),
+            catalog_bundle=bundle,
+        )
+
+
 @pytest.mark.parametrize(
     ("artists_raw", "expected"),
     [
@@ -256,17 +276,30 @@ def test_match_playlist_tracks_classifies_catalog_decompression_failure(monkeypa
         services.match_playlist_tracks(FakeSpotify(), "spotify:playlist:abc123", bundle)
 
 
+def test_match_playlist_tracks_classifies_other_local_catalog_failures(monkeypatch):
+    bundle = services.CatalogBundle(paths=[], catalog=pd.DataFrame(), indexes={})
+
+    def raise_catalog_failure(sp, playlist_id, indexes, catalog):
+        raise services.CatalogQueryError("invalid parquet footer")
+
+    monkeypatch.setattr(services, "fetch_playlist_profile", raise_catalog_failure)
+
+    with pytest.raises(errors.CatalogReadError, match="invalid parquet footer"):
+        services.match_playlist_tracks(FakeSpotify(), "spotify:playlist:abc123", bundle)
+
+
 def test_add_recommendations_to_spotify_classifies_auth_and_access_errors(monkeypatch):
-    class AuthFailSpotify(FakeSpotify):
-        def me(self):
-            raise FakeSpotifyError(401)
+    def raise_auth_error(sp, track_uris, name):
+        raise FakeSpotifyError(401)
+
+    monkeypatch.setattr(services, "create_recommendation_playlist", raise_auth_error)
 
     with pytest.raises(errors.SpotifyAuthenticationError):
         services.add_recommendations_to_spotify(
-            pd.DataFrame({"spotify_id": ["a"]}), sp=AuthFailSpotify()
+            pd.DataFrame({"spotify_id": ["a"]}), sp=FakeSpotify()
         )
 
-    def raise_access_error(sp, user_id, track_uris, name):
+    def raise_access_error(sp, track_uris, name):
         raise FakeSpotifyError(403)
 
     monkeypatch.setattr(services, "create_recommendation_playlist", raise_access_error)

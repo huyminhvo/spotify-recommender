@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Callable, Iterable, Mapping, Sequence
+from types import MappingProxyType
 
 import numpy as np
 import pandas as pd
@@ -35,6 +36,16 @@ class EvaluationStrategy:
     adjustments: Mapping[str, float] | None = None
     diagnostic_adjustments: Mapping[str, float] | None = None
     description: str = ""
+
+    def __post_init__(self) -> None:
+        for field_name in ("adjustments", "diagnostic_adjustments"):
+            adjustments = getattr(self, field_name)
+            if adjustments is not None:
+                object.__setattr__(
+                    self,
+                    field_name,
+                    MappingProxyType(dict(adjustments)),
+                )
 
 
 _DETERMINISTIC_PCA_POLICY = replace(
@@ -166,6 +177,10 @@ def normalize_memberships(
 
     labels = memberships.copy()
     if playlist_col != "playlist_id":
+        if "playlist_id" in labels.columns:
+            raise ValueError(
+                "Cannot rename playlist_col to 'playlist_id' because that column already exists."
+            )
         labels = labels.rename(columns={playlist_col: "playlist_id"})
 
     if "catalog_spotify_id" not in labels.columns:
@@ -201,7 +216,7 @@ def normalize_memberships(
         subset=["playlist_id", "_membership_key"],
         keep="first",
     )
-    return labels.reset_index(drop=True)
+    return labels.drop(columns="_membership_key").reset_index(drop=True)
 
 
 def _stable_seed(base_seed: int, *parts: object) -> int:
@@ -218,6 +233,9 @@ def ranking_metrics(
     relevant_count: int | None = None,
 ) -> dict[str, float]:
     """Compute bounded binary ranking metrics without double-counting duplicates."""
+    if k < 1:
+        raise ValueError("k must be at least 1.")
+
     relevant = {_clean_id(track_id) for track_id in relevant_ids}
     relevant.discard(None)
     denominator = len(relevant) if relevant_count is None else int(relevant_count)
@@ -261,8 +279,14 @@ def recommendation_diagnostics(
     top_k: int,
 ) -> dict[str, float]:
     """Per-request diagnostics; catalog coverage is aggregated across requests."""
+    if top_k < 1:
+        raise ValueError("top_k must be at least 1.")
+
     rec_count = len(recs)
-    strategy_name = strategy.name if isinstance(strategy, EvaluationStrategy) else strategy
+    if isinstance(strategy, EvaluationStrategy):
+        uses_similarity = strategy.policy.strategy in {"weighted_cosine", "unweighted_cosine"}
+    else:
+        uses_similarity = "cosine" in strategy or strategy == "deployed"
 
     if rec_count and "artist_primary_canon" in recs.columns:
         artists = recs["artist_primary_canon"].dropna()
@@ -274,11 +298,7 @@ def recommendation_diagnostics(
     artist_diversity = artists.nunique() / rec_count if rec_count else 0.0
 
     avg_similarity = np.nan
-    if (
-        ("cosine" in strategy_name or strategy_name == "deployed")
-        and "similarity" in recs.columns
-        and not recs.empty
-    ):
+    if uses_similarity and "similarity" in recs.columns and not recs.empty:
         avg_similarity = float(pd.to_numeric(recs["similarity"], errors="coerce").mean())
 
     return {
@@ -410,6 +430,11 @@ def audit_memberships(
     near_duplicate_jaccard: float = 0.80,
 ) -> dict[str, object]:
     """Summarize label scale, matchability, and track-set overlap."""
+    if min_playlists < 1:
+        raise ValueError("min_playlists must be at least 1.")
+    if not 0.0 <= near_duplicate_jaccard <= 1.0:
+        raise ValueError("near_duplicate_jaccard must be between 0 and 1.")
+
     labels = normalize_memberships(memberships)
     playlist_sizes = labels.groupby("playlist_id").size()
     matched = int(labels["matched"].sum())
@@ -447,7 +472,7 @@ def audit_memberships(
 
     return {
         "num_playlists": num_playlists,
-        "num_memberships": int(len(labels)),
+        "num_memberships": len(labels),
         "matched_memberships": matched,
         "match_rate": float(matched / len(labels)) if len(labels) else 0.0,
         "min_playlist_size": int(playlist_sizes.min()) if len(playlist_sizes) else 0,
@@ -487,6 +512,11 @@ def bootstrap_confidence_intervals(
     random_state: int = 0,
 ) -> pd.DataFrame:
     """Cluster-bootstrap playlists after split-level metrics have been averaged."""
+    if bootstrap_samples < 1:
+        raise ValueError("bootstrap_samples must be at least 1.")
+    if not 0.0 < confidence_level < 1.0:
+        raise ValueError("confidence_level must be between 0 and 1.")
+
     rows = []
     alpha = (1.0 - confidence_level) / 2.0
     for strategy, strategy_df in per_playlist.groupby("strategy", sort=False):
@@ -543,19 +573,19 @@ def summarize_evaluations(
     )
     summary = summary.merge(request_counts, on="strategy", how="left")
 
-    if recommendations.empty:
-        exposure = pd.DataFrame(
-            {
-                "strategy": summary["strategy"],
-                "unique_recommendations": 0,
-                "total_recommendations": 0,
-            }
-        )
-    else:
-        exposure = recommendations.groupby("strategy", as_index=False).agg(
+    exposure = summary[["strategy"]].copy()
+    if not recommendations.empty:
+        recommendation_counts = recommendations.groupby("strategy", as_index=False).agg(
             unique_recommendations=("spotify_id", "nunique"),
             total_recommendations=("spotify_id", "size"),
         )
+        exposure = exposure.merge(recommendation_counts, on="strategy", how="left")
+    else:
+        exposure["unique_recommendations"] = 0
+        exposure["total_recommendations"] = 0
+    exposure[["unique_recommendations", "total_recommendations"]] = (
+        exposure[["unique_recommendations", "total_recommendations"]].fillna(0).astype(int)
+    )
     exposure["recommendation_repeat_rate"] = np.where(
         exposure["total_recommendations"] > 0,
         1.0 - exposure["unique_recommendations"] / exposure["total_recommendations"],

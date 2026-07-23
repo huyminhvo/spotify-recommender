@@ -1,3 +1,6 @@
+"""Spotify playlist retrieval and catalog-matching helpers."""
+
+import logging
 import re
 from collections.abc import Iterator
 
@@ -5,6 +8,8 @@ import pandas as pd
 from spotipy import Spotify
 
 from utils.matcher import canon_artist_primary, canon_title, match_track
+
+logger = logging.getLogger(__name__)
 
 MEMBERSHIP_COLUMNS = [
     "playlist_id",
@@ -174,9 +179,14 @@ def fetch_playlist_profile(
     Returns a DataFrame of matched rows (with features).
     """
     matched_rows = []
+    seen_tracks = set()
     total_tracks = 0
-    for _, track in _iter_playlist_tracks(sp, playlist_id):
+    for position, track in _iter_playlist_tracks(sp, playlist_id):
         total_tracks += 1
+        identity = _source_track_identity(track, position)
+        if identity in seen_tracks:
+            continue
+        seen_tracks.add(identity)
         match = _match_catalog_track(
             track,
             indexes=indexes,
@@ -188,10 +198,14 @@ def fetch_playlist_profile(
 
     stats = {"total_tracks": total_tracks, "matched_tracks": len(matched_rows)}
     if not matched_rows:
-        print("No tracks from this playlist matched the catalog.")
+        logger.info("No tracks from playlist %s matched the catalog", playlist_id)
         empty = pd.DataFrame()
         return (empty, stats) if return_stats else empty
 
-    print(f"Matched {len(matched_rows)} tracks from playlist against catalog")
+    logger.info(
+        "Matched %d tracks from playlist %s against the catalog",
+        len(matched_rows),
+        playlist_id,
+    )
     matched_df = pd.DataFrame(matched_rows)
     return (matched_df, stats) if return_stats else matched_df

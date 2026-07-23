@@ -17,7 +17,9 @@ def test_create_playlist_uses_current_me_and_items_endpoints():
 
     sp = FakeSpotify()
     result = create_recommendation_playlist(
-        sp, "ignored-user", ["spotify:track:a"], name="Recommendations"
+        sp,
+        ["spotify:track:a"],
+        name="Recommendations",
     )
 
     assert result == "https://spotify.test/playlist"

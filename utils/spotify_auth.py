@@ -7,16 +7,16 @@ import json
 import os
 import secrets
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
 
 import spotipy
 from dotenv import load_dotenv
 from spotipy.cache_handler import CacheFileHandler, MemoryCacheHandler
 from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOAuth
 
-USER_PLAYLIST_SCOPE = "playlist-read-private playlist-modify-public playlist-modify-private"
+USER_PLAYLIST_SCOPE = "playlist-read-private playlist-modify-private"
 EVALUATION_PLAYLIST_SCOPE = "playlist-read-private"
 OAUTH_STATE_MAX_AGE_SECONDS = 10 * 60
 DEFAULT_EVALUATION_TOKEN_CACHE = Path(".spotify_cache") / "evaluation-token.json"
@@ -74,6 +74,8 @@ def decode_oauth_state(
         payload = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
         raise ValueError("OAuth state was invalid.") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("OAuth state payload was invalid.")
 
     current_time = int(time.time()) if now is None else now
     issued_at = payload.get("issued_at")

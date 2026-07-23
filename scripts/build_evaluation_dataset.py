@@ -23,16 +23,8 @@ from utils.spotify_auth import (
 )
 from utils.spotify_integration import extract_playlist_id, fetch_playlist_membership
 
-DEFAULT_OUTPUT_CSV = ROOT_DIR / "data" / "examples" / "real_playlist_membership.csv"
-
-
-def default_catalog_paths(root_dir: Path = ROOT_DIR) -> list[str]:
-    data_raw = root_dir / "data" / "raw"
-    return [
-        str(data_raw / "spotify_data.csv"),
-        str(data_raw / "spotify_top_songs_audio_features.csv"),
-        str(data_raw / "tracks_features.csv"),
-    ]
+DEFAULT_OUTPUT_CSV = ROOT_DIR / "data" / "local" / "playlist_membership.csv"
+DEFAULT_SUMMARY_CSV = ROOT_DIR / "data" / "local" / "playlist_match_summary.csv"
 
 
 def deployment_catalog_path(root_dir: Path = ROOT_DIR) -> Path:
@@ -96,8 +88,8 @@ def load_playlist_inputs(
 
 
 def count_csv_rows(path: str | Path) -> int:
-    with Path(path).open("r", encoding="utf-8", errors="ignore") as f:
-        line_count = sum(1 for _ in f)
+    with Path(path).open("r", encoding="utf-8", errors="ignore") as stream:
+        line_count = sum(1 for _ in stream)
     return max(line_count - 1, 0)
 
 
@@ -224,7 +216,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--playlist-file",
-        help="Text file with one Spotify playlist URL, URI, or raw ID per line. '#' comments are ignored.",
+        help=(
+            "Text file with one Spotify playlist URL, URI, or raw ID per line. "
+            "'#' comments are ignored."
+        ),
     )
     catalog_group = parser.add_mutually_exclusive_group()
     catalog_group.add_argument(
@@ -251,8 +246,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--summary-csv",
-        default=None,
-        help="Optional path for a per-playlist match summary CSV.",
+        default=str(DEFAULT_SUMMARY_CSV),
+        help="Where to write the per-playlist match summary CSV.",
     )
     parser.add_argument(
         "--min-matched-tracks",
@@ -333,9 +328,8 @@ def main() -> None:
     output_path = Path(args.output_csv)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     dataset.to_csv(output_path, index=False)
-    print(
-        f"[write] {len(dataset)} rows across {dataset['playlist_id'].nunique()} playlists -> {output_path}"
-    )
+    playlist_count = dataset["playlist_id"].nunique()
+    print(f"[write] {len(dataset)} rows across {playlist_count} playlists -> {output_path}")
 
     if args.summary_csv:
         summary_path = Path(args.summary_csv)

@@ -21,13 +21,16 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F", "I", "B"]
+select = ["E", "W", "F", "I", "B", "UP", "C4", "SIM", "PIE", "RET", "RUF", "T20"]
 
 [tool.ruff.lint.per-file-ignores]
-"scripts/*.py" = ["E402"]
+"scripts/*.py" = ["E402", "T201"]
+"utils/terminal_progress.py" = ["T201"]
 "webapp/*.py" = ["E402"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-ra"
+addopts = "-ra --strict-config --strict-markers"
+filterwarnings = ["error"]
+xfail_strict = true

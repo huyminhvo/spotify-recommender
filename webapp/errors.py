@@ -22,7 +22,10 @@ class SpotifyAuthenticationError(AppError):
 
 
 class SpotifyPlaylistAccessError(AppError):
-    user_message = "Spotify could not access that playlist. Make sure it exists and is public or shared with your account."
+    user_message = (
+        "Spotify could not access that playlist. Make sure it exists and is public or "
+        "shared with your account."
+    )
 
 
 class SpotifyRateLimitError(AppError):
@@ -34,7 +37,10 @@ class NoCatalogMatchesError(AppError):
 
 
 class MissingDatasetError(AppError):
-    user_message = "The local music dataset or cache is missing. Rebuild the catalog data before running recommendations."
+    user_message = (
+        "The local music dataset or cache is missing. Rebuild the catalog data before "
+        "running recommendations."
+    )
 
 
 class CatalogReadError(AppError):

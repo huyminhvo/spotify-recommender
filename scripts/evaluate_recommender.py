@@ -5,10 +5,10 @@ import hashlib
 import json
 import math
 import sys
+from collections.abc import Iterable
 from dataclasses import asdict, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable
 
 import pandas as pd
 
@@ -25,13 +25,19 @@ from recommender.evaluate import (
     normalize_memberships,
 )
 from recommender.policy import DEPLOYED_POLICY
-from scripts.build_evaluation_dataset import deployment_catalog_path, parquet_row_count
+from scripts.build_evaluation_dataset import (
+    DEFAULT_OUTPUT_CSV,
+    DEFAULT_SUMMARY_CSV,
+    deployment_catalog_path,
+    parquet_row_count,
+)
 from utils.catalog_store import DEFAULT_CANDIDATE_LIMIT, CatalogStore
 from utils.terminal_progress import TerminalProgress
 
-DEFAULT_MEMBERSHIP_CSV = ROOT_DIR / "data" / "examples" / "real_playlist_membership.csv"
+DEFAULT_MEMBERSHIP_CSV = DEFAULT_OUTPUT_CSV
+EXAMPLE_MEMBERSHIP_CSV = ROOT_DIR / "data" / "examples" / "real_playlist_membership.csv"
 LEGACY_EVAL_CSV = ROOT_DIR / "data" / "examples" / "real_playlist_eval.csv"
-DEFAULT_MATCH_SUMMARY_CSV = ROOT_DIR / "data" / "examples" / "real_playlist_eval_summary.csv"
+DEFAULT_MATCH_SUMMARY_CSV = DEFAULT_SUMMARY_CSV
 DEFAULT_REPORT_PATH = ROOT_DIR / "reports" / "evaluation.md"
 DEFAULT_RESULTS_JSON = ROOT_DIR / "reports" / "evaluation_results.json"
 README_PATH = ROOT_DIR / "README.md"
@@ -58,6 +64,8 @@ def sha256_file(path: str | Path) -> str:
 def default_membership_path() -> Path | None:
     if DEFAULT_MEMBERSHIP_CSV.exists():
         return DEFAULT_MEMBERSHIP_CSV
+    if EXAMPLE_MEMBERSHIP_CSV.exists():
+        return EXAMPLE_MEMBERSHIP_CSV
     if LEGACY_EVAL_CSV.exists():
         return LEGACY_EVAL_CSV
     return None
@@ -156,13 +164,19 @@ def filter_memberships(
     return filtered.reset_index(drop=True)
 
 
-def load_match_summary(path: str | Path | None) -> dict[str, object] | None:
+def load_match_summary(
+    path: str | Path | None,
+    playlist_ids: Iterable[str] | None = None,
+) -> dict[str, object] | None:
     if path is None:
         return None
     summary_path = Path(path)
     if not summary_path.exists():
         return None
     summary = pd.read_csv(summary_path)
+    if playlist_ids is not None:
+        selected = {str(playlist_id) for playlist_id in playlist_ids}
+        summary = summary[summary["playlist_id"].astype(str).isin(selected)].copy()
     if summary.empty:
         return None
 
@@ -176,6 +190,7 @@ def load_match_summary(path: str | Path | None) -> dict[str, object] | None:
     matched = int(pd.to_numeric(summary[matched_col], errors="coerce").fillna(0).sum())
     return {
         "path": portable_path(summary_path),
+        "sha256": sha256_file(summary_path),
         "num_playlists": int(summary["playlist_id"].nunique()),
         "total_source_tracks": total,
         "matched_tracks": matched,
@@ -222,16 +237,18 @@ def build_results_payload(
     label_metadata: dict[str, object],
     match_summary: dict[str, object] | None,
     strategies: Iterable[EvaluationStrategy],
+    input_artifacts: dict[str, object] | None = None,
 ) -> dict[str, object]:
     return _json_safe(
         {
-            "generated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "generated_at_utc": datetime.now(UTC).isoformat(timespec="seconds"),
             "status": (
                 "benchmark" if result.audit.get("benchmark_ready") else "engineering-smoke-test"
             ),
             "catalog": catalog_metadata,
             "labels": label_metadata,
             "match_summary": match_summary,
+            "input_artifacts": input_artifacts or {},
             "config": asdict(config),
             "strategies": [_strategy_metadata(strategy) for strategy in strategies],
             "audit": result.audit,
@@ -282,7 +299,7 @@ def comparison_table_markdown(
         return "_No evaluable playlist splits were available._"
 
     if include_intervals:
-        confidence_percent = int(round(confidence_level * 100))
+        confidence_percent = round(confidence_level * 100)
         header = (
             f"| Strategy | Recall@{top_k} | {confidence_percent}% CI | "
             f"NDCG@{top_k} | {confidence_percent}% CI | Hit rate | "
@@ -291,7 +308,7 @@ def comparison_table_markdown(
         )
         separator = "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
     else:
-        header = f"| Strategy | Recall@{top_k} | NDCG@{top_k} | " "Hit rate | Catalog coverage |"
+        header = f"| Strategy | Recall@{top_k} | NDCG@{top_k} | Hit rate | Catalog coverage |"
         separator = "|---|---:|---:|---:|---:|"
 
     lines = [header, separator]
@@ -315,8 +332,7 @@ def comparison_table_markdown(
             )
         else:
             lines.append(
-                "| {strategy} | {recall} | {ndcg} | {hit_rate} | "
-                "{coverage} |".format(
+                "| {strategy} | {recall} | {ndcg} | {hit_rate} | {coverage} |".format(
                     strategy=row["strategy"],
                     recall=_format_number(row["recall_at_k"]),
                     ndcg=_format_number(row["ndcg_at_k"]),
@@ -343,8 +359,8 @@ def render_report(
         if benchmark_ready
         else "Engineering smoke test — not evidence of recommendation quality"
     )
-    generated_date = datetime.now(timezone.utc).date().isoformat()
-    confidence_percent = int(round(config.confidence_level * 100))
+    generated_date = datetime.now(UTC).date().isoformat()
+    confidence_percent = round(config.confidence_level * 100)
 
     lines = [
         "# Offline evaluation report",
@@ -641,10 +657,8 @@ def main() -> None:
         args.labels_csv,
         playlist_col=args.playlist_col,
     )
-    memberships = filter_memberships(
-        memberships,
-        load_playlist_id_filter(args.playlist_id_file),
-    )
+    playlist_filter = load_playlist_id_filter(args.playlist_id_file)
+    memberships = filter_memberships(memberships, playlist_filter)
     weight_path = args.weights_json
     if (
         weight_path is None
@@ -674,7 +688,19 @@ def main() -> None:
         "eligible_rows": eligible_rows,
         "candidate_limit": catalog.candidate_limit,
     }
-    match_summary = load_match_summary(args.match_summary_csv)
+    match_summary = load_match_summary(args.match_summary_csv, playlist_filter)
+    input_artifacts: dict[str, object] = {}
+    if args.playlist_id_file:
+        input_artifacts["playlist_filter"] = {
+            "path": portable_path(args.playlist_id_file),
+            "sha256": sha256_file(args.playlist_id_file),
+            "selected_playlist_ids": sorted(playlist_filter or ()),
+        }
+    if weight_path:
+        input_artifacts["weights"] = {
+            "path": portable_path(weight_path),
+            "sha256": sha256_file(weight_path),
+        }
 
     print(
         f"[evaluation] starting {label_metadata['playlists']} playlists x "
@@ -697,6 +723,7 @@ def main() -> None:
         label_metadata=label_metadata,
         match_summary=match_summary,
         strategies=strategies,
+        input_artifacts=input_artifacts,
     )
     report = render_report(
         result,

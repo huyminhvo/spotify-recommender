@@ -26,12 +26,18 @@ def build_user_profile(
     """
     if X_user.size == 0:
         raise ValueError("User feature matrix is empty, cannot build profile.")
+    if X_user.ndim != 2:
+        raise ValueError("User feature matrix must be a two-dimensional array.")
+    if np.any(np.isinf(X_user)) or np.any(np.all(np.isnan(X_user), axis=0)):
+        raise ValueError("User profile must contain only finite values.")
 
     if method == "mean":
-        return np.nanmean(X_user, axis=0)
-
+        profile = np.nanmean(X_user, axis=0)
     elif method == "median":
-        return np.nanmedian(X_user, axis=0)
-
+        profile = np.nanmedian(X_user, axis=0)
     else:
         raise ValueError(f"Unknown method: {method}")
+
+    if not np.all(np.isfinite(profile)):
+        raise ValueError("User profile must contain only finite values.")
+    return profile

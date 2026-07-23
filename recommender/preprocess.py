@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable, List, Optional
+from collections.abc import Iterable
 
 import numpy as np
 import pandas as pd
@@ -29,7 +29,7 @@ def _coerce_numeric(df: pd.DataFrame, cols: Iterable[str]) -> pd.DataFrame:
     return out
 
 
-def _apply_special_transforms(df: pd.DataFrame, feature_order: List[str]) -> pd.DataFrame:
+def _apply_special_transforms(df: pd.DataFrame, feature_order: list[str]) -> pd.DataFrame:
     """
     Apply mild, interpretable transforms to reduce skew:
       - tempo: log1p
@@ -76,14 +76,14 @@ def _apply_special_transforms(df: pd.DataFrame, feature_order: List[str]) -> pd.
     return out
 
 
-def _extract_feature_matrix(df: pd.DataFrame, feature_order: List[str]) -> pd.DataFrame:
+def _extract_feature_matrix(df: pd.DataFrame, feature_order: list[str]) -> pd.DataFrame:
     """
     Return a DataFrame with only the requested features, in the exact order.
     Will create 'duration_ms' surrogate if only 'duration' exists.
     """
     # ensure duration fallbacks are handled BEFORE selecting columns
     df2 = _apply_special_transforms(
-        _coerce_numeric(df, feature_order + ["duration"]), feature_order
+        _coerce_numeric(df, [*feature_order, "duration"]), feature_order
     )
 
     missing = [c for c in feature_order if c not in df2.columns]
@@ -93,7 +93,7 @@ def _extract_feature_matrix(df: pd.DataFrame, feature_order: List[str]) -> pd.Da
     return df2[feature_order].copy()
 
 
-def fit_scaler(df: pd.DataFrame, feature_cols: Optional[List[str]] = None) -> StandardScaler:
+def fit_scaler(df: pd.DataFrame, feature_cols: list[str] | None = None) -> StandardScaler:
     """
     Fit a StandardScaler on catalog features (after transforms).
 
@@ -125,7 +125,7 @@ def fit_scaler(df: pd.DataFrame, feature_cols: Optional[List[str]] = None) -> St
 
 
 def transform(
-    df: pd.DataFrame, scaler: StandardScaler, feature_cols: Optional[List[str]] = None
+    df: pd.DataFrame, scaler: StandardScaler, feature_cols: list[str] | None = None
 ) -> np.ndarray:
     """
     Transform features into a scaled numpy array using a pre-fitted scaler.

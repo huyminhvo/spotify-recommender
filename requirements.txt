@@ -1,8 +1,9 @@
-streamlit
-pandas
-numpy
-scikit-learn
-spotipy
-python-dotenv
-pyarrow
-duckdb
+# Direct application dependencies are pinned to the versions validated in CI.
+duckdb==1.5.4
+numpy==2.3.2
+pandas==2.3.1
+pyarrow==21.0.0
+python-dotenv==1.1.1
+scikit-learn==1.7.1
+spotipy==2.25.1
+streamlit==1.50.0

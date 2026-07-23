@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from types import MappingProxyType
-from typing import Callable, Mapping
 
 import numpy as np
 import pandas as pd
@@ -60,9 +60,14 @@ class TuningConfig:
         required = self.min_tuning_playlists + self.min_test_playlists
         if self.min_playlists < required:
             raise ValueError(
-                "min_playlists must be at least min_tuning_playlists + " "min_test_playlists."
+                "min_playlists must be at least min_tuning_playlists + min_test_playlists."
             )
-        if self.weight_min <= 0.0 or self.weight_max <= self.weight_min:
+        if (
+            not np.isfinite(self.weight_min)
+            or not np.isfinite(self.weight_max)
+            or self.weight_min <= 0.0
+            or self.weight_max <= self.weight_min
+        ):
             raise ValueError("Require 0 < weight_min < weight_max.")
         if self.bootstrap_samples < 1:
             raise ValueError("bootstrap_samples must be at least 1.")
@@ -86,6 +91,9 @@ class WeightCandidate:
         missing = [feature for feature in FEATURE_COLS if feature not in self.weights]
         if missing:
             raise ValueError(f"Weight candidate is missing features: {missing}")
+        unknown = set(self.weights) - set(FEATURE_COLS)
+        if unknown:
+            raise ValueError(f"Weight candidate has unsupported features: {sorted(unknown)}")
         values = {feature: float(self.weights[feature]) for feature in FEATURE_COLS}
         if any(not np.isfinite(value) or value <= 0.0 for value in values.values()):
             raise ValueError("All feature multipliers must be finite and positive.")
@@ -183,7 +191,7 @@ def partition_playlist_ids(
 
 def generate_weight_candidates(config: TuningConfig) -> tuple[WeightCandidate, ...]:
     """Generate uniform, current-default, and reproducible log-uniform candidates."""
-    uniform = {feature: 1.0 for feature in FEATURE_COLS}
+    uniform = dict.fromkeys(FEATURE_COLS, 1.0)
     hand_set = {feature: float(DEFAULT_WEIGHTS.get(feature, 1.0)) for feature in FEATURE_COLS}
     candidates = [
         WeightCandidate("uniform", uniform, "baseline"),

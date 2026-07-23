@@ -1,11 +1,14 @@
+"""Application services shared by the Streamlit UI and tests."""
+
 from __future__ import annotations
 
 import ast
+import logging
 import os
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 import pandas as pd
 
@@ -15,7 +18,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from recommender.policy import DEPLOYED_POLICY
 from recommender.recommend import recommend_from_catalog
-from utils.catalog_store import CatalogStore
+from utils.catalog_store import CatalogQueryError, CatalogStore
 from utils.merge_datasets import _fingerprint_inputs, get_merged_dataset
 from utils.spotify_auth import get_public_spotify_client
 from utils.spotify_integration import extract_playlist_id, fetch_playlist_profile
@@ -31,8 +34,8 @@ from webapp.errors import (
     classify_spotify_error,
 )
 
-SPOTIFY_TRACK_BATCH_SIZE = 50
 CATALOG_MANIFEST_PATH = ROOT_DIR / "data" / "catalog" / "CURRENT"
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -64,15 +67,6 @@ def format_artist_names(artists_raw) -> str:
         return ", ".join(names) or "Unknown artist"
 
     return str(artists_raw).strip() or "Unknown artist"
-
-
-def default_catalog_paths(root_dir: Path = ROOT_DIR) -> list[str]:
-    data_raw = root_dir / "data" / "raw"
-    return [
-        str(data_raw / "spotify_data.csv"),
-        str(data_raw / "spotify_top_songs_audio_features.csv"),
-        str(data_raw / "tracks_features.csv"),
-    ]
 
 
 def cache_dir(root_dir: Path = ROOT_DIR) -> Path:
@@ -139,6 +133,8 @@ def match_playlist_tracks(sp, playlist_url: str, bundle: CatalogBundle) -> pd.Da
             user_tracks = fetch_playlist_profile(sp, playlist_id, catalog_store=bundle.catalog)
         else:
             user_tracks = fetch_playlist_profile(sp, playlist_id, bundle.indexes, bundle.catalog)
+    except CatalogQueryError as exc:
+        raise CatalogReadError(str(exc)) from exc
     except Exception as exc:
         if "ZSTD Decompression failure" in str(exc):
             raise CatalogReadError(str(exc)) from exc
@@ -173,6 +169,7 @@ def fetch_album_art_urls(sp, spotify_ids: Iterable[str]) -> list[str | None]:
         try:
             track = sp.track(spotify_id)
         except Exception:
+            logger.warning("Could not fetch album art for Spotify track %s", spotify_id)
             art_urls.append(None)
             continue
 
@@ -214,32 +211,35 @@ def get_recommendations(
     public_sp = public_sp or get_spotify_client_or_raise()
     bundle = catalog_bundle or load_catalog_bundle()
     user_tracks = match_playlist_tracks(sp, playlist_url, bundle)
-    recs = generate_recommendations(
-        bundle,
-        user_tracks,
-        top_n=top_n,
-        adjustments=adjustments,
-        exclude_spotify_ids=exclude_spotify_ids,
-    )
+    try:
+        recs = generate_recommendations(
+            bundle,
+            user_tracks,
+            top_n=top_n,
+            adjustments=adjustments,
+            exclude_spotify_ids=exclude_spotify_ids,
+        )
+    except CatalogQueryError as exc:
+        raise CatalogReadError(str(exc)) from exc
     return attach_album_art(public_sp, recs)
 
 
 def recommendation_track_uris(recs_df: pd.DataFrame) -> list[str]:
-    return [f"spotify:track:{sid}" for sid in recs_df["spotify_id"].dropna()]
+    track_ids = (str(track_id).strip() for track_id in recs_df["spotify_id"].dropna())
+    return [f"spotify:track:{track_id}" for track_id in track_ids if track_id]
 
 
-def add_recommendations_to_spotify(recs_df, playlist_name="Recommended Songs", sp=None):
+def add_recommendations_to_spotify(
+    recs_df: pd.DataFrame,
+    playlist_name: str = "Recommended Songs",
+    sp=None,
+) -> str:
     sp = sp or get_spotify_client_or_raise()
-    try:
-        user_id = sp.me()["id"]
-    except Exception as exc:
-        raise classify_spotify_error(exc) from exc
-
     track_uris = recommendation_track_uris(recs_df)
     if not track_uris:
         raise NoRecommendationTracksError()
 
     try:
-        return create_recommendation_playlist(sp, user_id, track_uris, name=playlist_name)
+        return create_recommendation_playlist(sp, track_uris, name=playlist_name)
     except Exception as exc:
         raise classify_spotify_error(exc) from exc

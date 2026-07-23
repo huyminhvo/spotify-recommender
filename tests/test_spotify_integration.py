@@ -48,6 +48,20 @@ def test_fetch_playlist_profile_uses_2026_items_endpoint_and_shape():
     assert result["spotify_id"].tolist() == ["track-id"]
 
 
+def test_fetch_playlist_profile_deduplicates_repeated_source_tracks():
+    class FakeSpotify:
+        def _get(self, path, **kwargs):
+            track = {"id": "track-id"}
+            return {"items": [{"item": track}, {"item": track}], "next": None}
+
+    catalog = pd.DataFrame([{"spotify_id": "track-id"}])
+    indexes = {"by_id": {"track-id": 0}, "by_key": {}, "by_artist": {}}
+
+    result = fetch_playlist_profile(FakeSpotify(), "playlist-id", indexes, catalog)
+
+    assert result["spotify_id"].tolist() == ["track-id"]
+
+
 def test_fetch_playlist_membership_preserves_misses_and_first_duplicate_position():
     class FakeSpotify:
         def __init__(self):

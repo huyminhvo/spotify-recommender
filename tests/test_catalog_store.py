@@ -1,6 +1,7 @@
 import pandas as pd
+import pytest
 
-from utils.catalog_store import CatalogStore
+from utils.catalog_store import CatalogQueryError, CatalogStore
 
 
 def _catalog():
@@ -109,3 +110,24 @@ def test_catalog_store_retries_transient_zstd_failure(monkeypatch, tmp_path):
 
     assert attempts == 2
     assert result["spotify_id"].tolist() == ["recovered"]
+
+
+def test_catalog_store_wraps_nontransient_local_failures(monkeypatch, tmp_path):
+    path = tmp_path / "catalog.parquet"
+    path.touch()
+    store = CatalogStore(path)
+
+    class FailingConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def execute(self, sql, parameters):
+            raise RuntimeError("invalid parquet footer")
+
+    monkeypatch.setattr(store, "_connect", lambda: FailingConnection())
+
+    with pytest.raises(CatalogQueryError, match="invalid parquet footer"):
+        store._query("SELECT 1")

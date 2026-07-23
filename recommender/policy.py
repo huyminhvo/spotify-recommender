@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Literal, Mapping
+from typing import Literal
 
-from recommender.weightings import DEFAULT_WEIGHTS
+from recommender.weightings import DEFAULT_WEIGHTS, validate_feature_weights
 
 RecommendationStrategy = Literal[
     "weighted_cosine",
@@ -30,9 +31,7 @@ class RecommendationPolicy:
 
     def __post_init__(self) -> None:
         if self.user_weights is not None:
-            frozen_weights = MappingProxyType(
-                {feature: float(weight) for feature, weight in self.user_weights.items()}
-            )
+            frozen_weights = MappingProxyType(validate_feature_weights(self.user_weights))
             object.__setattr__(self, "user_weights", frozen_weights)
         if self.pca_components < 1:
             raise ValueError("pca_components must be at least 1.")

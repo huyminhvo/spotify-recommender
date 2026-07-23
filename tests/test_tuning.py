@@ -7,6 +7,7 @@ import pytest
 from recommender.schema import FEATURE_COLS
 from recommender.tuning import (
     TuningConfig,
+    WeightCandidate,
     generate_weight_candidates,
     partition_playlist_ids,
     tune_recommender_weights,
@@ -67,6 +68,27 @@ def test_partition_refuses_too_few_playlists():
         partition_playlist_ids(_memberships(num_playlists=3), _config())
 
 
+@pytest.mark.parametrize(
+    ("weight_min", "weight_max"),
+    [
+        (float("nan"), 4.0),
+        (0.25, float("nan")),
+        (0.25, float("inf")),
+    ],
+)
+def test_tuning_config_rejects_nonfinite_weight_bounds(weight_min, weight_max):
+    with pytest.raises(ValueError, match="weight_min"):
+        _config(weight_min=weight_min, weight_max=weight_max)
+
+
+def test_weight_candidate_rejects_unknown_features():
+    weights = dict.fromkeys(FEATURE_COLS, 1.0)
+    weights["energgy"] = 1.0
+
+    with pytest.raises(ValueError, match="unsupported features"):
+        WeightCandidate("typo", weights, "test")
+
+
 def test_candidate_generation_includes_baselines_and_reproducible_log_uniform_trials():
     config = _config(num_trials=5, weight_min=0.5, weight_max=2.0)
 
@@ -80,7 +102,7 @@ def test_candidate_generation_includes_baselines_and_reproducible_log_uniform_tr
         "random_002",
         "random_003",
     ]
-    assert dict(first[0].weights) == {feature: 1.0 for feature in FEATURE_COLS}
+    assert dict(first[0].weights) == dict.fromkeys(FEATURE_COLS, 1.0)
     assert dict(first[1].weights) == {
         feature: DEFAULT_WEIGHTS.get(feature, 1.0) for feature in FEATURE_COLS
     }

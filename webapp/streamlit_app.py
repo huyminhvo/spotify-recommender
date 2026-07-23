@@ -80,8 +80,11 @@ elif oauth_code and spotify_config:
         ):
             if key in pending_request:
                 st.session_state[key] = pending_request[key]
-        if pending_request.get("action") == "recommend":
+        pending_action = pending_request.get("action")
+        if pending_action == "recommend":
             st.session_state.spotify_recommend_pending = True
+        elif pending_action == "add":
+            st.session_state.spotify_add_pending = True
         st.success("Spotify account connected.")
     except ValueError:
         logger.warning("Spotify authorization state was rejected", exc_info=True)
@@ -122,29 +125,14 @@ for widget_key, default_value in {
 
 st.markdown(
     """
-    <style>
-    [data-testid="stAppViewContainer"] {
-        background-color: #0e1117;
-        color: #fafafa;
-    }
-    [data-testid="stHeader"] {background: rgba(0,0,0,0);}
-    [data-testid="stToolbar"] {right: 2rem;}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# === Custom CSS overrides ===
-st.markdown(
-    """
 <style>
-/* Global app background */
-body {
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+[data-testid="stAppViewContainer"], body {
     background-color: #0e1117;
     color: #fafafa;
 }
-
-/* Card container */
+[data-testid="stHeader"] {background: rgba(0,0,0,0);}
+[data-testid="stToolbar"] {right: 2rem;}
 div[data-testid="column"] {
     background: #1a1d23;
     padding: 1rem;
@@ -152,37 +140,14 @@ div[data-testid="column"] {
     box-shadow: 0 4px 10px rgba(0,0,0,0.25);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-
-/* Hover effect */
 div[data-testid="column"]:hover {
     transform: translateY(-4px);
     box-shadow: 0 6px 14px rgba(0,0,0,0.4);
 }
-
-</style>
-""",
-    unsafe_allow_html=True,
-)
-
-st.markdown(
-    """
-<style>
-/* Match input labels to description color */
 label, .stSlider label, .stTextInput label {
     color: #b3b3b3 !important;
     font-weight: 500;
 }
-</style>
-""",
-    unsafe_allow_html=True,
-)
-
-st.markdown(
-    """
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-/* Apply font globally */
 html, body, [class*="css"] {
     font-family: 'Inter', sans-serif !important;
 }
@@ -247,6 +212,7 @@ recommend_request = {
 go = st.button("Get Recommendations")
 
 if go:
+    st.session_state.pop("recs", None)
     st.session_state.spotify_recommend_pending = True
 
 if st.session_state.get("spotify_recommend_pending"):
@@ -316,9 +282,12 @@ if "recs" in st.session_state and not st.session_state.recs.empty:
             # browser session and never write it to a shared filesystem cache.
             try:
                 with st.spinner("Creating playlist in your Spotify account..."):
-                    playlist_url = add_recommendations_to_spotify(st.session_state.recs, sp=user_sp)
+                    created_playlist_url = add_recommendations_to_spotify(
+                        st.session_state.recs,
+                        sp=user_sp,
+                    )
                 st.session_state.spotify_token_info = token_cache.get_cached_token()
-                st.success(f"Playlist created! [Open on Spotify]({playlist_url})")
+                st.success(f"Playlist created! [Open on Spotify]({created_playlist_url})")
             except AppError as e:
                 st.session_state.spotify_token_info = token_cache.get_cached_token()
                 logger.warning(
@@ -349,7 +318,7 @@ if "recs" in st.session_state and not st.session_state.recs.empty:
                 artists_str = format_artist_names(row.get("artists_raw"))
                 st.markdown(f"**{title}**  \n{artists_str}")
                 track_url = f"https://open.spotify.com/track/{row['spotify_id']}"
-                st.markdown(f"[Listen on Spotify]({track_url})", unsafe_allow_html=True)
+                st.markdown(f"[Listen on Spotify]({track_url})")
                 reason = row.get("recommendation_reason")
                 if reason:
                     st.caption(reason)

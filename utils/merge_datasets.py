@@ -3,13 +3,19 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import logging
+import tempfile
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 
 from utils.matcher import canon_artist_primary, canon_title
+
+logger = logging.getLogger(__name__)
+MERGE_SCHEMA_VERSION = 3
+ARTIST_SCAN_CHUNK_SIZE = 100_000
 
 # === Audio feature list ===
 AUDIO_FEATURES = [
@@ -29,7 +35,7 @@ AUDIO_FEATURES = [
 # === Column auto-mapper ===
 
 
-def _auto_columns(df: pd.DataFrame) -> Dict[str, Optional[str]]:
+def _auto_columns(df: pd.DataFrame) -> dict[str, str | None]:
     """
     Try to guess which columns in df map to the canonical schema.
     """
@@ -46,58 +52,149 @@ def _auto_columns(df: pd.DataFrame) -> Dict[str, Optional[str]]:
     return {
         "id": pick("id", "track_id", "spotify_id", "uri"),
         "name": pick("name", "track_name", "title"),
-        "artists": pick("artists", "artist", "artist_name"),
+        "artists": pick("artists", "artist_names", "artist", "artist_name"),
         "duration": duration,
         "explicit": next((c for c in df.columns if "explicit" in c.lower()), None),
         "popularity": next((c for c in df.columns if "popularity" in c.lower()), None),
-        "isrc": "isrc" if "isrc" in lower else None,
+        "isrc": pick("isrc"),
         "release_year": year,
         "album": pick("album", "album_name"),
         # audio features
-        "danceability": "danceability" if "danceability" in lower else None,
-        "energy": "energy" if "energy" in lower else None,
-        "valence": "valence" if "valence" in lower else None,
-        "speechiness": "speechiness" if "speechiness" in lower else None,
-        "acousticness": "acousticness" if "acousticness" in lower else None,
-        "instrumentalness": "instrumentalness" if "instrumentalness" in lower else None,
-        "liveness": "liveness" if "liveness" in lower else None,
-        "loudness": "loudness" if "loudness" in lower else None,
-        "tempo": "tempo" if "tempo" in lower else None,
-        "key": "key" if "key" in lower else None,
-        "mode": "mode" if "mode" in lower else None,
+        "danceability": pick("danceability"),
+        "energy": pick("energy"),
+        "valence": pick("valence"),
+        "speechiness": pick("speechiness"),
+        "acousticness": pick("acousticness"),
+        "instrumentalness": pick("instrumentalness"),
+        "liveness": pick("liveness"),
+        "loudness": pick("loudness"),
+        "tempo": pick("tempo"),
+        "key": pick("key"),
+        "mode": pick("mode"),
     }
 
 
 # === Row normalization ===
 
 
-def _normalize_row(r: pd.Series, colmap: Dict[str, Optional[str]]) -> Dict[str, Any]:
+def _artist_tokens(value: str) -> tuple[str, ...]:
+    return tuple(part.strip().casefold() for part in value.split(",") if part.strip())
+
+
+def _parse_artists(
+    value: Any,
+    source_column: str | None,
+    known_comma_artists: dict[tuple[str, ...], str] | None = None,
+) -> list[str]:
+    """Normalize singular, serialized-list, and comma-delimited artist fields."""
+    if isinstance(value, (list, tuple)):
+        return [str(artist).strip() for artist in value if str(artist).strip()]
+    if value is None or pd.isna(value):
+        return []
+
+    text = str(value).strip()
+    if not text:
+        return []
+    if text.startswith("["):
+        try:
+            parsed = ast.literal_eval(text)
+        except (SyntaxError, ValueError):
+            parsed = None
+        if isinstance(parsed, (list, tuple)):
+            return [str(artist).strip() for artist in parsed if str(artist).strip()]
+
+    column_name = (source_column or "").lower()
+    if column_name == "artist_names":
+        parts = [part.strip() for part in text.split(",") if part.strip()]
+        if len(parts) < 2:
+            return parts
+
+        # This source stores collaborators as a comma-delimited string, which is
+        # ambiguous for names such as "Tyler, The Creator". Prefer the longest
+        # artist names observed in singular/list-valued source columns, then treat
+        # all remaining segments as collaborators.
+        known = known_comma_artists or {}
+        artists: list[str] = []
+        position = 0
+        while position < len(parts):
+            for end in range(len(parts), position + 1, -1):
+                known_artist = known.get(tuple(part.casefold() for part in parts[position:end]))
+                if known_artist is not None:
+                    artists.append(known_artist)
+                    position = end
+                    break
+            else:
+                artists.append(parts[position])
+                position += 1
+        return artists
+    return [text]
+
+
+def _known_comma_artists(paths: list[str]) -> dict[tuple[str, ...], str]:
+    """Index comma-bearing names from unambiguous artist columns."""
+    known: dict[tuple[str, ...], str] = {}
+    for path in paths:
+        columns = pd.read_csv(path, nrows=0).columns
+        artist_column = _auto_columns(pd.DataFrame(columns=columns))["artists"]
+        if artist_column is None or artist_column.lower() == "artist_names":
+            continue
+
+        chunks = pd.read_csv(
+            path,
+            usecols=[artist_column],
+            chunksize=ARTIST_SCAN_CHUNK_SIZE,
+        )
+        for chunk in chunks:
+            for value in chunk[artist_column].dropna().drop_duplicates():
+                for artist in _parse_artists(value, artist_column):
+                    tokens = _artist_tokens(artist)
+                    if len(tokens) > 1:
+                        known.setdefault(tokens, artist)
+    return known
+
+
+def _parse_bool(value: Any) -> bool | None:
+    """Parse common boolean encodings without treating the string 'False' as true."""
+    if value is None or pd.isna(value):
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and value in {0, 1}:
+        return bool(value)
+    normalized = str(value).strip().lower()
+    if normalized in {"true", "1", "yes"}:
+        return True
+    if normalized in {"false", "0", "no"}:
+        return False
+    return None
+
+
+def _normalize_row(
+    r: pd.Series,
+    colmap: dict[str, str | None],
+    known_comma_artists: dict[tuple[str, ...], str] | None = None,
+) -> dict[str, Any]:
     """
     Normalize one raw row into the canonical schema + audio features.
     """
 
     # artists to list[str]
-    artists_raw = r.get(colmap["artists"], "")
-    if isinstance(artists_raw, str):
-        txt = artists_raw.strip()
-        if txt.startswith("["):
-            try:
-                artists_raw = ast.literal_eval(txt)
-            except Exception:
-                artists_raw = [a.strip() for a in txt.split(",")]
-        else:
-            artists_raw = [a.strip() for a in txt.split(",")]
-    elif not isinstance(artists_raw, list) or artists_raw is None:
-        artists_raw = []
+    artists_raw = _parse_artists(
+        r.get(colmap["artists"]),
+        colmap["artists"],
+        known_comma_artists,
+    )
 
     # id normalize
     raw_id = r.get(colmap["id"])
-    sid = str(raw_id) if raw_id is not None and str(raw_id) != "" else None
+    sid = str(raw_id).strip() if raw_id is not None and pd.notna(raw_id) else None
+    sid = sid or None
     if sid and ":" in sid:
         sid = sid.split(":")[-1]
 
     # title canon
-    title_raw = str(r.get(colmap["name"], "") or "")
+    raw_title = r.get(colmap["name"], "")
+    title_raw = "" if raw_title is None or pd.isna(raw_title) else str(raw_title).strip()
     tc = canon_title(title_raw)
     title_canon = tc[0] if isinstance(tc, tuple) else tc
 
@@ -108,23 +205,18 @@ def _normalize_row(r: pd.Series, colmap: Dict[str, Optional[str]]) -> Dict[str, 
     dur = r.get(colmap["duration"])
     try:
         duration_ms = int(dur) if pd.notnull(dur) else None
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         duration_ms = None
 
     # explicit
-    explicit = None
-    if colmap["explicit"] is not None:
-        try:
-            explicit = bool(r.get(colmap["explicit"]))
-        except Exception:
-            explicit = None
+    explicit = _parse_bool(r.get(colmap["explicit"])) if colmap["explicit"] else None
 
     # popularity
     popularity = None
     if colmap["popularity"] is not None and pd.notnull(r.get(colmap["popularity"])):
         try:
             popularity = int(r.get(colmap["popularity"]))
-        except Exception:
+        except (TypeError, ValueError, OverflowError):
             popularity = None
 
     # release year
@@ -132,7 +224,7 @@ def _normalize_row(r: pd.Series, colmap: Dict[str, Optional[str]]) -> Dict[str, 
     if colmap["release_year"] is not None and pd.notnull(r.get(colmap["release_year"])):
         try:
             release_year = int(str(r.get(colmap["release_year"]))[:4])
-        except Exception:
+        except (TypeError, ValueError, OverflowError):
             release_year = None
 
     # isrc / album
@@ -146,7 +238,7 @@ def _normalize_row(r: pd.Series, colmap: Dict[str, Optional[str]]) -> Dict[str, 
     )
 
     # audio features
-    feats: Dict[str, Any] = {}
+    feats: dict[str, Any] = {}
     for feat in AUDIO_FEATURES:
         col = colmap.get(feat)
         if not col:
@@ -177,7 +269,7 @@ def _normalize_row(r: pd.Series, colmap: Dict[str, Optional[str]]) -> Dict[str, 
                 feats[feat] = int(val)
             else:
                 feats[feat] = float(val)
-        except Exception:
+        except (TypeError, ValueError, OverflowError):
             feats[feat] = None
 
     return {
@@ -211,14 +303,18 @@ def _coalesce(a, b):
     return a
 
 
-def _merge_two_rows(x: Dict[str, Any], y: Dict[str, Any]) -> Dict[str, Any]:
+def _merge_two_rows(x: dict[str, Any], y: dict[str, Any]) -> dict[str, Any]:
     out = dict(x)
     for k in ["spotify_id", "isrc"]:
-        out[k] = out[k] or y.get(k)
+        out[k] = out.get(k) or y.get(k)
 
     out["title_raw"] = _coalesce(out.get("title_raw"), y.get("title_raw"))
     out["artists_raw"] = _coalesce(out.get("artists_raw"), y.get("artists_raw"))
     out["album"] = _coalesce(out.get("album"), y.get("album"))
+    # Canonical fields must describe the metadata selected above, not whichever
+    # input row happened to initialize the merge bucket.
+    out["title_canon"] = canon_title(out.get("title_raw", ""))
+    out["artist_primary_canon"] = canon_artist_primary(out.get("artists_raw", []))
 
     # popularity: take max
     px, py = out.get("popularity"), y.get("popularity")
@@ -262,14 +358,14 @@ def _merge_two_rows(x: Dict[str, Any], y: Dict[str, Any]) -> Dict[str, Any]:
 # === Dedupe passes ===
 
 
-def _dedupe_by_key(rows: List[Dict[str, Any]], key_fn) -> List[Dict[str, Any]]:
+def _dedupe_by_key(rows: list[dict[str, Any]], key_fn) -> list[dict[str, Any]]:
     buckets = defaultdict(list)
     for r in rows:
         k = key_fn(r)
         if k is not None:
             buckets[k].append(r)
 
-    merged: List[Dict[str, Any]] = []
+    merged: list[dict[str, Any]] = []
     seen = set()
     for _, items in buckets.items():
         base = items[0]
@@ -287,7 +383,7 @@ def _dedupe_by_key(rows: List[Dict[str, Any]], key_fn) -> List[Dict[str, Any]]:
 # === Main merge ===
 
 
-def merge_datasets(paths: List[str], conservative_duration_ms: int = 3000) -> pd.DataFrame:
+def merge_datasets(paths: list[str], conservative_duration_ms: int = 3000) -> pd.DataFrame:
     """
     Load CSV datasets, normalize rows, and dedupe in three passes:
       1) by Spotify ID
@@ -299,12 +395,16 @@ def merge_datasets(paths: List[str], conservative_duration_ms: int = 3000) -> pd
     DataFrame
         A merged dataset with canonical metadata and audio features.
     """
-    norm_rows: List[Dict[str, Any]] = []
+    if conservative_duration_ms <= 0:
+        raise ValueError("conservative_duration_ms must be greater than zero.")
+
+    known_comma_artists = _known_comma_artists(paths)
+    norm_rows: list[dict[str, Any]] = []
     for p in paths:
         df = pd.read_csv(p)
         col = _auto_columns(df)
         for _, r in df.iterrows():
-            norm_rows.append(_normalize_row(r, col))
+            norm_rows.append(_normalize_row(r, col, known_comma_artists))
 
     rows = _dedupe_by_key(norm_rows, key_fn=lambda r: r["spotify_id"])
     rows = _dedupe_by_key(rows, key_fn=lambda r: r["isrc"])
@@ -312,7 +412,7 @@ def merge_datasets(paths: List[str], conservative_duration_ms: int = 3000) -> pd
     def key_canon_dur(r):
         if not r["title_canon"] or not r["artist_primary_canon"] or r["duration_ms"] is None:
             return None
-        bucket = int(round(r["duration_ms"] / conservative_duration_ms))
+        bucket = round(r["duration_ms"] / conservative_duration_ms)
         return (r["title_canon"], r["artist_primary_canon"], bucket)
 
     rows = _dedupe_by_key(rows, key_fn=key_canon_dur)
@@ -331,16 +431,14 @@ def merge_datasets(paths: List[str], conservative_duration_ms: int = 3000) -> pd
             "release_year",
             "isrc",
             "album",
-        ]
-        + AUDIO_FEATURES,
+            *AUDIO_FEATURES,
+        ],
     )
 
-    out_df = out_df.drop_duplicates(
+    return out_df.drop_duplicates(
         subset=["spotify_id", "isrc", "title_canon", "artist_primary_canon", "duration_ms"],
         keep="first",
     ).reset_index(drop=True)
-
-    return out_df
 
 
 # === Cache wrapper ===
@@ -354,9 +452,17 @@ def _fingerprint_inputs(paths: list[str]) -> str:
     for p in paths:
         stat = Path(p).stat()
         items.append(
-            {"path": str(Path(p).resolve()), "size": stat.st_size, "mtime": int(stat.st_mtime)}
+            {
+                "path": str(Path(p).resolve()),
+                "size": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+            }
         )
-    blob = json.dumps(sorted(items, key=lambda d: d["path"]), separators=(",", ":")).encode()
+    fingerprint_payload = {
+        "merge_schema_version": MERGE_SCHEMA_VERSION,
+        "inputs": sorted(items, key=lambda item: item["path"]),
+    }
+    blob = json.dumps(fingerprint_payload, separators=(",", ":")).encode()
     return hashlib.sha256(blob).hexdigest()[:16]
 
 
@@ -372,11 +478,24 @@ def get_merged_dataset(
     target = Path(cache_dir) / f"merged_{fp}.parquet"
 
     if target.exists() and not force_rebuild:
-        print(f"[cache] Using cached {target.name}")
+        logger.info("Using cached merged dataset %s", target.name)
         return pd.read_parquet(target)
 
-    print("[cache] Rebuilding merged dataset...")
+    logger.info("Rebuilding merged dataset cache")
     df = merge_datasets(paths)
-    df.to_parquet(target, index=False)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=target.parent,
+            prefix=f".{target.stem}-",
+            suffix=".tmp.parquet",
+            delete=False,
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+        df.to_parquet(temporary_path, index=False)
+        temporary_path.replace(target)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
 
     return df

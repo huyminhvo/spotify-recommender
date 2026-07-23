@@ -11,7 +11,7 @@
 *.jpg binary
 *.jpeg binary
 *.gif binary
-*.csv binary
+*.csv text eol=lf
 *.parquet binary
 *.pkl binary
 

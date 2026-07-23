@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-try:
-    from services import (
+if __package__:
+    from webapp.services import (
         AppError,
         add_recommendations_to_spotify,
         format_artist_names,
@@ -9,8 +9,8 @@ try:
         get_spotify_client_or_raise,
         load_catalog_bundle,
     )
-except ModuleNotFoundError:
-    from webapp.services import (
+else:
+    from services import (
         AppError,
         add_recommendations_to_spotify,
         format_artist_names,

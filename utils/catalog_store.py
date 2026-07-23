@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Optional, Tuple
 
 import pandas as pd
 
@@ -27,6 +27,10 @@ FLOAT32_COLUMNS = [
     "key",
     "mode",
 ]
+
+
+class CatalogQueryError(RuntimeError):
+    """Raised when the local deployment catalog cannot be queried."""
 
 
 class CatalogStore:
@@ -67,7 +71,7 @@ class CatalogStore:
                         "Retrying catalog query after a transient ZSTD decompression failure"
                     )
                     continue
-                raise
+                raise CatalogQueryError(f"Could not query catalog {self.path}: {exc}") from exc
         raise AssertionError("catalog query retry loop exited unexpectedly")
 
     def match_track(self, track: dict, duration_tol: int = 2000) -> dict | None:
@@ -123,11 +127,11 @@ class CatalogStore:
 
     @staticmethod
     def _candidate_filters(
-        exclude_ids: Optional[Iterable[str]] = None,
-        exclude_artists: Optional[Iterable[str]] = None,
-        min_popularity: Optional[int] = None,
-        max_popularity: Optional[int] = None,
-        year_range: Optional[Tuple[int, int]] = None,
+        exclude_ids: Iterable[str] | None = None,
+        exclude_artists: Iterable[str] | None = None,
+        min_popularity: int | None = None,
+        max_popularity: int | None = None,
+        year_range: tuple[int, int] | None = None,
     ) -> tuple[list[str], list]:
         clauses: list[str] = []
         parameters: list = []
@@ -180,11 +184,11 @@ class CatalogStore:
 
     def count_candidates(
         self,
-        exclude_ids: Optional[Iterable[str]] = None,
-        exclude_artists: Optional[Iterable[str]] = None,
-        min_popularity: Optional[int] = None,
-        max_popularity: Optional[int] = None,
-        year_range: Optional[Tuple[int, int]] = None,
+        exclude_ids: Iterable[str] | None = None,
+        exclude_artists: Iterable[str] | None = None,
+        min_popularity: int | None = None,
+        max_popularity: int | None = None,
+        year_range: tuple[int, int] | None = None,
     ) -> int:
         """Count all eligible candidates before applying the configured sample limit."""
         clauses, filter_parameters = self._candidate_filters(
@@ -207,11 +211,11 @@ class CatalogStore:
 
     def load_candidates(
         self,
-        exclude_ids: Optional[Iterable[str]] = None,
-        exclude_artists: Optional[Iterable[str]] = None,
-        min_popularity: Optional[int] = None,
-        max_popularity: Optional[int] = None,
-        year_range: Optional[Tuple[int, int]] = None,
+        exclude_ids: Iterable[str] | None = None,
+        exclude_artists: Iterable[str] | None = None,
+        min_popularity: int | None = None,
+        max_popularity: int | None = None,
+        year_range: tuple[int, int] | None = None,
     ) -> pd.DataFrame:
         clauses, filter_parameters = self._candidate_filters(
             exclude_ids=exclude_ids,

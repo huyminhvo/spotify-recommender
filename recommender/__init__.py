@@ -1,1 +1,1 @@
-# core recommender system package
+"""Core recommendation, steering, tuning, and evaluation components."""

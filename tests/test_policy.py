@@ -18,12 +18,35 @@ def test_deployed_policy_encodes_the_webapp_algorithm():
 
 
 def test_recommendation_policy_is_deeply_immutable():
-    policy = RecommendationPolicy(user_weights={"energy": 2.0})
+    weights = {"energy": 2.0}
+    policy = RecommendationPolicy(user_weights=weights)
+    weights["energy"] = 3.0
 
+    assert policy.user_weights["energy"] == 2.0
     with pytest.raises(FrozenInstanceError):
         policy.use_pca = False
     with pytest.raises(TypeError):
         policy.user_weights["energy"] = 1.0
+
+
+@pytest.mark.parametrize(
+    "weights",
+    [
+        {"energgy": 1.0},
+        {"energy": -1.0},
+        {"energy": float("nan")},
+        {"energy": float("inf")},
+    ],
+)
+def test_recommendation_policy_rejects_invalid_feature_weights(weights):
+    with pytest.raises(ValueError):
+        RecommendationPolicy(user_weights=weights)
+
+
+def test_recommendation_policy_allows_disabling_a_feature_with_zero_weight():
+    policy = RecommendationPolicy(user_weights={"energy": 0.0})
+
+    assert policy.user_weights["energy"] == 0.0
 
 
 def test_policy_exposes_candidate_and_scoring_kwargs():

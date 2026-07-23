@@ -1,1 +1,1 @@
-# utility functions and helpers for the recommender system
+"""Catalog, matching, and Spotify integration utilities."""

@@ -1,4 +1,4 @@
-from typing import Iterable, Optional, Tuple
+from collections.abc import Iterable
 
 import pandas as pd
 
@@ -7,11 +7,11 @@ from utils.matcher import canon_artist_primary
 
 def filter_candidates(
     catalog: pd.DataFrame,
-    exclude_ids: Optional[Iterable[str]] = None,
-    exclude_artists: Optional[Iterable[str]] = None,
-    min_popularity: Optional[int] = None,
-    max_popularity: Optional[int] = None,
-    year_range: Optional[Tuple[int, int]] = None,
+    exclude_ids: Iterable[str] | None = None,
+    exclude_artists: Iterable[str] | None = None,
+    min_popularity: int | None = None,
+    max_popularity: int | None = None,
+    year_range: tuple[int, int] | None = None,
 ) -> pd.DataFrame:
     df = catalog.copy()
 

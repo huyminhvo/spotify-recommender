@@ -1,14 +1,20 @@
 import pandas as pd
+import pytest
 
 from recommender.evaluate import (
     DEFAULT_STRATEGIES,
+    SUMMARY_METRICS,
     EvaluationConfig,
+    EvaluationStrategy,
     audit_memberships,
     bootstrap_confidence_intervals,
     evaluate_benchmark,
+    normalize_memberships,
     ranking_metrics,
+    recommendation_diagnostics,
     summarize_evaluations,
 )
+from recommender.policy import RecommendationPolicy
 
 
 def _track(spotify_id, danceability, energy, popularity=80):
@@ -58,6 +64,54 @@ def test_ranking_metrics_compute_bounded_metrics_without_duplicate_hits():
     assert metrics["recall_at_k"] == 1.0
     assert metrics["hit_rate_at_k"] == 1.0
     assert 0.0 < metrics["ndcg_at_k"] <= 1.0
+
+
+def test_ranking_metrics_reject_nonpositive_k():
+    with pytest.raises(ValueError, match="k must be at least 1"):
+        ranking_metrics([], {"relevant"}, k=0)
+
+
+def test_recommendation_diagnostics_uses_the_policy_strategy():
+    recs = pd.DataFrame(
+        {
+            "artists_raw": ["Artist A", "Artist B"],
+            "similarity": [0.2, 0.6],
+        }
+    )
+    strategy = EvaluationStrategy(
+        name="tuning_trial_001",
+        policy=RecommendationPolicy(strategy="weighted_cosine"),
+    )
+
+    diagnostics = recommendation_diagnostics(recs, strategy, top_k=2)
+
+    assert diagnostics["avg_similarity"] == pytest.approx(0.4)
+
+
+def test_evaluation_strategy_freezes_adjustment_mappings():
+    adjustments = {"energy": 0.25}
+    strategy = EvaluationStrategy(
+        name="steered",
+        policy=RecommendationPolicy(),
+        adjustments=adjustments,
+        diagnostic_adjustments=adjustments,
+    )
+    adjustments["energy"] = -0.5
+
+    assert strategy.adjustments == {"energy": 0.25}
+    assert strategy.diagnostic_adjustments == {"energy": 0.25}
+    with pytest.raises(TypeError):
+        strategy.adjustments["energy"] = 0.1
+
+
+def test_normalize_memberships_hides_internal_keys_and_rejects_column_collisions():
+    normalized = normalize_memberships(_labels("p1", "a", "b"))
+
+    assert "_membership_key" not in normalized.columns
+
+    conflicting = _labels("p1", "a").assign(source_playlist_id="source-p1")
+    with pytest.raises(ValueError, match="already exists"):
+        normalize_memberships(conflicting, playlist_col="source_playlist_id")
 
 
 def test_evaluator_keeps_catalog_and_memberships_separate_and_uses_all_positives():
@@ -208,6 +262,26 @@ def test_bootstrap_resamples_playlist_means_deterministically():
     assert 0.5 <= first.loc[0, "recall_at_k_ci_high"] <= 1.0
 
 
+def test_bootstrap_and_audit_helpers_validate_direct_inputs():
+    per_playlist = pd.DataFrame({"playlist_id": ["p1"], "strategy": ["s"], "recall_at_k": [1.0]})
+    with pytest.raises(ValueError, match="bootstrap_samples"):
+        bootstrap_confidence_intervals(
+            per_playlist,
+            metric_cols=["recall_at_k"],
+            bootstrap_samples=0,
+        )
+    with pytest.raises(ValueError, match="confidence_level"):
+        bootstrap_confidence_intervals(
+            per_playlist,
+            metric_cols=["recall_at_k"],
+            confidence_level=1.0,
+        )
+    with pytest.raises(ValueError, match="min_playlists"):
+        audit_memberships(_labels("p1", "a"), min_playlists=0)
+    with pytest.raises(ValueError, match="near_duplicate_jaccard"):
+        audit_memberships(_labels("p1", "a"), near_duplicate_jaccard=1.1)
+
+
 def test_catalog_coverage_uses_distinct_items_across_all_requests():
     per_split = pd.DataFrame(
         [
@@ -216,9 +290,8 @@ def test_catalog_coverage_uses_distinct_items_across_all_requests():
                 "split_id": split_id,
                 "strategy": "s",
                 "candidate_pool_size": 10,
-                **{
-                    metric: 0.0
-                    for metric in [
+                **dict.fromkeys(
+                    [
                         "precision_at_k",
                         "recall_at_k",
                         "matched_recall_at_k",
@@ -233,8 +306,9 @@ def test_catalog_coverage_uses_distinct_items_across_all_requests():
                         "artist_diversity",
                         "artist_duplication_rate",
                         "steering_target_distance",
-                    ]
-                },
+                    ],
+                    0.0,
+                ),
             }
             for playlist_id, split_id in [("p1", 0), ("p2", 0)]
         ]
@@ -256,6 +330,35 @@ def test_catalog_coverage_uses_distinct_items_across_all_requests():
     assert summary.loc[0, "unique_recommendations"] == 2
     assert summary.loc[0, "catalog_coverage"] == 0.2
     assert summary.loc[0, "recommendation_repeat_rate"] == 0.5
+
+
+def test_exposure_summary_includes_strategies_with_zero_recommendations():
+    per_split = pd.DataFrame(
+        [
+            {
+                "playlist_id": "p1",
+                "split_id": 0,
+                "strategy": strategy,
+                "candidate_pool_size": 10,
+                **dict.fromkeys(SUMMARY_METRICS, 0.0),
+            }
+            for strategy in ("with_recommendations", "without_recommendations")
+        ]
+    )
+    recommendations = pd.DataFrame({"strategy": ["with_recommendations"], "spotify_id": ["a"]})
+
+    summary = summarize_evaluations(
+        per_split,
+        recommendations,
+        catalog_size=10,
+        config=EvaluationConfig(bootstrap_samples=10),
+    ).set_index("strategy")
+
+    empty_strategy = summary.loc["without_recommendations"]
+    assert empty_strategy["unique_recommendations"] == 0
+    assert empty_strategy["total_recommendations"] == 0
+    assert empty_strategy["recommendation_repeat_rate"] == 0.0
+    assert empty_strategy["catalog_coverage"] == 0.0
 
 
 def test_membership_audit_flags_small_and_near_duplicate_benchmarks():

@@ -41,6 +41,31 @@ def test_match_track_prefers_exact_spotify_id():
     assert match["title_raw"] == "Known Song"
 
 
+def test_match_track_indexes_support_non_range_dataframe_index():
+    df = pd.DataFrame(
+        [
+            {
+                "spotify_id": "first-id",
+                "title_raw": "First Song",
+                "artists_raw": ["Artist"],
+                "duration_ms": 180_000,
+            },
+            {
+                "spotify_id": "second-id",
+                "title_raw": "Second Song",
+                "artists_raw": ["Artist"],
+                "duration_ms": 200_000,
+            },
+        ],
+        index=[10, 20],
+    )
+    indexes = build_indexes(df)
+
+    match = match_track({"id": "second-id"}, indexes, df)
+
+    assert match["title_raw"] == "Second Song"
+
+
 def test_match_track_resolves_canonical_title_artist_and_duration():
     df = pd.DataFrame(
         [

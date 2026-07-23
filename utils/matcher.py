@@ -7,6 +7,21 @@ import pandas as pd
 
 # === Canonicalization ===
 
+TITLE_VARIANT_KEYWORDS = (
+    "clean",
+    "explicit",
+    "radio edit",
+    "remaster",
+    "remastered",
+    "instrumental",
+    "acoustic",
+    "live",
+    "deluxe",
+    "anniversary edition",
+    "club mix",
+    "extended mix",
+)
+
 
 def normalize_ascii(s: str) -> str:
     """
@@ -21,24 +36,10 @@ def canon_title(title: str) -> str:
     Canonicalize a title: strip accents, lowercase, remove variant tags, normalize spacing.
     """
     t = normalize_ascii(title).strip().lower()
-    STRIP_KEYWORDS = [
-        "clean",
-        "explicit",
-        "radio edit",
-        "remaster",
-        "remastered",
-        "instrumental",
-        "acoustic",
-        "live",
-        "deluxe",
-        "anniversary edition",
-        "club mix",
-        "extended mix",
-    ]
 
     def contains_kw(seg: str) -> bool:
         seg = seg.lower()
-        return any(re.search(rf"\b{re.escape(kw)}\b", seg) for kw in STRIP_KEYWORDS)
+        return any(re.search(rf"\b{re.escape(kw)}\b", seg) for kw in TITLE_VARIANT_KEYWORDS)
 
     # strip trailing bracket segments with keywords
     while True:
@@ -57,8 +58,7 @@ def canon_title(title: str) -> str:
 
     # normalize spaces/punct
     t = re.sub(r"[^\w\s]", " ", t)
-    t = re.sub(r"\s+", " ", t).strip()
-    return t
+    return re.sub(r"\s+", " ", t).strip()
 
 
 def canon_artist_primary(artists_raw) -> str:
@@ -72,16 +72,15 @@ def canon_artist_primary(artists_raw) -> str:
         if txt.startswith("["):
             try:
                 parsed = ast.literal_eval(txt)
-                primary = parsed[0] if parsed else ""
-            except Exception:
+                primary = parsed[0] if isinstance(parsed, (list, tuple)) and parsed else ""
+            except (SyntaxError, ValueError):
                 primary = txt.split(",")[0]
         else:
             primary = txt.split(",")[0]
     else:
         primary = ""
     primary = normalize_ascii(primary).strip().lower()
-    primary = re.sub(r"\s+", " ", primary)
-    return primary
+    return re.sub(r"\s+", " ", primary)
 
 
 # variant tags to deprioritize in tie-breaking
@@ -107,10 +106,10 @@ def build_indexes(df: pd.DataFrame):
     """
     by_id, by_key, by_artist = {}, defaultdict(list), defaultdict(list)
 
-    for i, row in df.iterrows():
+    for position, (_, row) in enumerate(df.iterrows()):
         sid = row.get("spotify_id")
         if sid:
-            by_id[sid] = i  # store row index, not the row itself
+            by_id[sid] = position
 
         title_canon = row.get("title_canon") or canon_title(row.get("title_raw", ""))
         artist_canon = row.get("artist_primary_canon") or canon_artist_primary(
@@ -118,10 +117,10 @@ def build_indexes(df: pd.DataFrame):
         )
 
         if title_canon and artist_canon:
-            by_key[(title_canon, artist_canon)].append(i)
+            by_key[(title_canon, artist_canon)].append(position)
 
         if artist_canon:
-            by_artist[artist_canon].append(i)
+            by_artist[artist_canon].append(position)
 
     return {"by_id": by_id, "by_key": by_key, "by_artist": by_artist}
 
@@ -149,7 +148,8 @@ def match_track(track, indexes, df, duration_tol=2000):
         candidates_idx = [
             i
             for i in candidates_idx
-            if df.at[i, "duration_ms"] and abs(df.at[i, "duration_ms"] - dur) <= duration_tol
+            if pd.notna(df.iloc[i].get("duration_ms"))
+            and abs(df.iloc[i]["duration_ms"] - dur) <= duration_tol
         ]
 
     if not candidates_idx:

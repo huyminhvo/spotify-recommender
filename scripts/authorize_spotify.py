@@ -9,7 +9,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
-from utils.spotify_auth import (  # noqa: E402
+from utils.spotify_auth import (
     DEFAULT_EVALUATION_TOKEN_CACHE,
     create_cached_user_oauth,
     get_spotify_config,

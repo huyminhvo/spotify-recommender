@@ -24,3 +24,14 @@ def test_build_user_profile_rejects_empty_or_unknown_method():
 
     with pytest.raises(ValueError, match="Unknown method"):
         build_user_profile(np.ones((2, 3), dtype=np.float32), method="clustered")
+
+
+def test_build_user_profile_requires_a_2d_finite_result():
+    with pytest.raises(ValueError, match="two-dimensional"):
+        build_user_profile(np.array([1.0, 2.0], dtype=np.float32))
+
+    with pytest.raises(ValueError, match="finite"):
+        build_user_profile(np.array([[1.0, np.inf], [2.0, 3.0]], dtype=np.float32))
+
+    with pytest.raises(ValueError, match="finite"):
+        build_user_profile(np.array([[1.0, np.nan], [2.0, np.nan]], dtype=np.float32))

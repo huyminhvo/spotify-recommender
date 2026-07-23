@@ -1,3 +1,7 @@
+import base64
+import hashlib
+import hmac
+
 import pytest
 from spotipy.cache_handler import CacheFileHandler, MemoryCacheHandler
 from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOAuth
@@ -30,6 +34,7 @@ def test_user_oauth_uses_only_memory_cache_and_expected_scopes():
     assert cache.get_cached_token() == token
     assert "playlist-read-private" in oauth.scope
     assert "playlist-modify-private" in oauth.scope
+    assert "playlist-modify-public" not in oauth.scope
     assert oauth.redirect_uri == "https://example.test/"
 
 
@@ -75,3 +80,13 @@ def test_oauth_state_rejects_tampering_and_wrong_browser():
         decode_oauth_state(CONFIG, state[:-1] + "x", "browser")
     with pytest.raises(ValueError, match="browser binding"):
         decode_oauth_state(CONFIG, state, "other-browser")
+
+
+def test_oauth_state_rejects_a_validly_signed_non_object_payload():
+    encoded = base64.urlsafe_b64encode(b"[]").rstrip(b"=")
+    signature = hmac.new(CONFIG.client_secret.encode(), encoded, hashlib.sha256).digest()
+    encoded_signature = base64.urlsafe_b64encode(signature).rstrip(b"=")
+    state = f"{encoded.decode()}.{encoded_signature.decode()}"
+
+    with pytest.raises(ValueError, match="payload"):
+        decode_oauth_state(CONFIG, state, "browser")

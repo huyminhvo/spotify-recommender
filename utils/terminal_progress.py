@@ -38,7 +38,7 @@ class TerminalProgress:
 
 
 def _duration(seconds: float) -> str:
-    total_seconds = max(0, int(round(seconds)))
+    total_seconds = max(0, round(seconds))
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     if hours:

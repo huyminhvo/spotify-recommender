@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 from pathlib import Path
+from uuid import uuid4
 
 import duckdb
 
@@ -50,31 +51,35 @@ def build_catalog(source: Path, output_dir: Path, version: str) -> Path:
         raise ValueError("version may contain only letters, numbers, '-' and '_'")
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    temporary = output_dir / f".catalog-{version}.tmp.parquet"
+    build_token = uuid4().hex
+    temporary = output_dir / f".catalog-{version}-{build_token}.tmp.parquet"
+    temporary_manifest = output_dir / f".CURRENT-{build_token}.tmp"
     source_sql = str(source).replace("'", "''")
-    target_sql = str(temporary.resolve()).replace("'", "''")
+    try:
+        target_sql = str(temporary.resolve()).replace("'", "''")
+        with duckdb.connect(":memory:") as connection:
+            connection.execute(f"""
+                COPY (
+                    SELECT {SELECT_COLUMNS}
+                    FROM read_parquet('{source_sql}')
+                ) TO '{target_sql}'
+                (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 122880)
+                """)
+            row_count = connection.execute(
+                f"SELECT count(*) FROM read_parquet('{target_sql}')"
+            ).fetchone()[0]
+        if row_count == 0:
+            raise ValueError("refusing to publish an empty catalog")
 
-    with duckdb.connect(":memory:") as connection:
-        connection.execute(
-            f"""
-            COPY (
-                SELECT {SELECT_COLUMNS}
-                FROM read_parquet('{source_sql}')
-            ) TO '{target_sql}'
-            (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 122880)
-            """
-        )
-        row_count = connection.execute(
-            f"SELECT count(*) FROM read_parquet('{target_sql}')"
-        ).fetchone()[0]
-    if row_count == 0:
+        digest = sha256_file(temporary)
+        artifact = output_dir / f"catalog-{version}-{digest[:16]}.parquet"
+        temporary.replace(artifact)
+        temporary_manifest.write_bytes(f"{artifact.name}\n".encode())
+        temporary_manifest.replace(output_dir / "CURRENT")
+    finally:
         temporary.unlink(missing_ok=True)
-        raise ValueError("refusing to publish an empty catalog")
+        temporary_manifest.unlink(missing_ok=True)
 
-    digest = sha256_file(temporary)
-    artifact = output_dir / f"catalog-{version}-{digest[:16]}.parquet"
-    temporary.replace(artifact)
-    (output_dir / "CURRENT").write_text(f"{artifact.name}\n", encoding="utf-8")
     print(f"Built {artifact} ({row_count:,} rows, {artifact.stat().st_size:,} bytes)")
     print(f"SHA-256: {digest}")
     return artifact
